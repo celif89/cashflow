@@ -5,7 +5,12 @@ import { supabase } from "./supabase";
 
 export interface AppData {
   categories: Category[];
+  /** zatwierdzone – tylko one liczą się do budżetu */
   transactions: Transaction[];
+  /** z wyciągu, czekają na zatwierdzenie */
+  pending: Transaction[];
+  /** odciski linii wyciągu już rozpatrzonych */
+  importRefs: Set<string>;
   receipts: Receipt[];
   settings: Record<string, string>;
 }
@@ -31,20 +36,25 @@ async function fetchAll<T>(table: string, order: [string, boolean][]): Promise<T
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 
 export async function loadAll(): Promise<AppData> {
-  let [categories, transactions, receipts, settings] = await Promise.all([
+  let [categories, transactions, receipts, settings, refs] = await Promise.all([
     fetchAll<Category>("cf_categories", [["position", true], ["id", true]]),
     fetchAll<Transaction>("cf_transactions", [["day", false], ["id", false]]),
     fetchAll<Receipt>("cf_receipts", [["day", false], ["id", false]]),
     fetchAll<{ key: string; value: string }>("cf_settings", [["key", true]]),
+    // tabela z wersji 1.1.0 – gdy jeszcze jej nie ma, aplikacja działa dalej (bez importu)
+    fetchAll<{ ref: string }>("cf_import_refs", [["ref", true]]).catch(() => [] as { ref: string }[]),
   ]);
   // pierwsze uruchomienie: domyślny zestaw kategorii
   if (categories.length === 0 && !settings.some((s) => s.key === "seeded")) {
     await seedCategories();
     categories = await fetchAll<Category>("cf_categories", [["position", true], ["id", true]]);
   }
+  const txs = transactions.map((t) => ({ ...t, amount: Number(t.amount), category_id: num(t.category_id), receipt_id: num(t.receipt_id) }));
   return {
     categories: categories.map((c) => ({ ...c, monthly_limit: num(c.monthly_limit) })),
-    transactions: transactions.map((t) => ({ ...t, amount: Number(t.amount), category_id: num(t.category_id), receipt_id: num(t.receipt_id) })),
+    transactions: txs.filter((t) => t.status !== "pending"),
+    pending: txs.filter((t) => t.status === "pending").sort((a, b) => a.day.localeCompare(b.day) || a.id - b.id),
+    importRefs: new Set(refs.map((r) => r.ref)),
     receipts: receipts.map((r) => ({ ...r, total: Number(r.total), items: (r.items ?? []).map((i) => ({ ...i, amount: Number(i.amount) })) })),
     settings: Object.fromEntries(settings.map((s) => [s.key, s.value ?? ""])),
   };
@@ -105,4 +115,42 @@ export async function deleteReceipt(r: Receipt) {
 // --- ustawienia -----------------------------------------------------------------
 export async function saveSetting(key: string, value: string) {
   check(await supabase.from("cf_settings").upsert({ key, value }, { onConflict: "user_id,key" }));
+}
+
+// --- import z banku -----------------------------------------------------------------
+export async function insertPending(rows: NewTransaction[]) {
+  for (let i = 0; i < rows.length; i += 500) {
+    check(await supabase.from("cf_transactions").insert(rows.slice(i, i + 500).map((r) => ({ ...r, status: "pending" }))));
+  }
+}
+
+async function addRefs(refs: string[], action: "added" | "merged" | "skipped") {
+  if (refs.length) check(await supabase.from("cf_import_refs").upsert(refs.map((ref) => ({ ref, action })), { onConflict: "user_id,ref", ignoreDuplicates: true }));
+}
+
+/** Zatwierdza pozycje z wyciągu (z poprawkami użytkownika). */
+export async function confirmPending(items: { t: Transaction; patch?: Partial<NewTransaction> }[]) {
+  for (const { t, patch } of items) {
+    check(await supabase.from("cf_transactions").update({ ...patch, status: "confirmed", updated_at: new Date().toISOString() }).eq("id", t.id));
+  }
+  await addRefs(items.map((i) => i.t.bank_ref).filter((r): r is string => !!r), "added");
+}
+
+/** Pozycja z wyciągu to zakup już zapisany (paragon albo wpis ręczny) – zostaje tamten, bez dublowania. */
+export async function mergePending(t: Transaction, target: { type: "receipt" | "transaction"; id: number }) {
+  const table = target.type === "receipt" ? "cf_receipts" : "cf_transactions";
+  check(await supabase.from(table).update({ bank_ref: t.bank_ref }).eq("id", target.id));
+  check(await supabase.from("cf_transactions").delete().eq("id", t.id));
+  if (t.bank_ref) await addRefs([t.bank_ref], "merged");
+}
+
+export async function skipPending(ts: Transaction[]) {
+  check(await supabase.from("cf_transactions").delete().in("id", ts.map((t) => t.id)));
+  await addRefs(ts.map((t) => t.bank_ref).filter((r): r is string => !!r), "skipped");
+}
+
+/** Przy zapisie paragonu: płatność z wyciągu zastępujemy rozbiciem z paragonu. */
+export async function replaceBankTransaction(bankTx: Transaction, receiptId: number) {
+  check(await supabase.from("cf_receipts").update({ bank_ref: bankTx.bank_ref }).eq("id", receiptId));
+  check(await supabase.from("cf_transactions").delete().eq("id", bankTx.id));
 }

@@ -1,13 +1,13 @@
-import { ArrowRight, Plus, ScanLine, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { ArrowRight, FileUp, Plus, ScanLine, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Lines, RankBars, usePalette } from "../components/charts";
 import { MonthPicker, TransactionList } from "../components/finance";
-import { Card, EmptyState, PageHeader, Stat } from "../components/ui";
+import { Card, EmptyState, Notice, PageHeader, Stat } from "../components/ui";
 import { addMonths, daysInMonth, thisMonth, today } from "../engine/dates";
 import { budgets, byCategory, cumulative, forecast, inMonth, totals } from "../engine/stats";
 import { useData } from "../lib/DataContext";
-import { axisMoney, money, moneyRound, monthName, percent, txCount } from "../lib/format";
+import { axisMoney, money, moneyRound, monthName, percent, plural, txCount } from "../lib/format";
 import { CategoryIcon } from "../lib/icons";
 import { useMonthParam } from "../lib/month";
 
@@ -37,15 +37,26 @@ export function Dashboard() {
     };
   }, [txs, categories, month, prev, upto, isNow]);
 
+  const pendingCount = data!.pending.length;
+  const pendingBanner = pendingCount > 0 && (
+    <div className="mb-4">
+      <Notice tone="warn" action={<Link to="/import" className="btn btn-secondary -my-1.5 py-1.5 text-xs">Sprawdź</Link>}>
+        Do sprawdzenia z banku: {plural(pendingCount, "pozycja", "pozycje", "pozycji")}. Dopóki ich nie zatwierdzisz, nie liczą się do budżetu.
+      </Notice>
+    </div>
+  );
+
   if (txs.length === 0) {
     return (
       <>
-        <PageHeader eyebrow="Budżet domowy" title="Witaj w Cashflow" subtitle="Zacznij od pierwszego wydatku albo zeskanuj paragon." />
+        <PageHeader eyebrow="Budżet domowy" title="Witaj w Cashflow" subtitle="Zacznij od pierwszego wydatku, zeskanuj paragon albo wczytaj wyciąg z banku." />
+        {pendingBanner}
         <Card>
           <EmptyState icon={<Wallet className="size-7" />} title="Nie ma jeszcze żadnych transakcji"
             action={<div className="flex flex-wrap justify-center gap-2">
               <button className="btn btn-primary" onClick={() => openEditor()}><Plus className="size-4" /> Dodaj wydatek</button>
               <Link className="btn btn-secondary" to="/skanuj"><ScanLine className="size-4" /> Skanuj paragon</Link>
+              <Link className="btn btn-secondary" to="/import"><FileUp className="size-4" /> Wczytaj wyciąg</Link>
               <button className="btn btn-ghost" onClick={() => openEditor({ kind: "income" })}>Dodaj przychód</button>
             </div>}>
             Kategorie są już przygotowane – zmienisz je w Ustawieniach. Wpisz też wynagrodzenie jako przychód, wtedy zobaczysz saldo miesiąca.
@@ -62,6 +73,7 @@ export function Dashboard() {
     <>
       <PageHeader eyebrow="Pulpit" title={<span className="capitalize">{monthName(month)}</span>}
         actions={<MonthPicker month={month} onChange={setMonth} />} />
+      {pendingBanner}
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Stat label="Wydatki" icon={<TrendingDown className="size-4" />} value={moneyRound(m.t.expense)}

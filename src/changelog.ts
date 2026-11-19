@@ -12,6 +12,18 @@ export const APP_VERSION: string = __APP_VERSION__;
 
 export const RELEASES: Release[] = [
   {
+    version: "1.1.0",
+    date: "2026-11-19",
+    title: "Import wyciągu z banku",
+    changes: [
+      { kind: "new", text: "Import z banku: wyciąg PDF z Alior Banku albo historia CSV z dowolnego banku (kolumny rozpoznają się same, w razie potrzeby można je wskazać). Przy PDF aplikacja sprawdza, czy suma wpływów i wydatków zgadza się z wyciągiem." },
+      { kind: "new", text: "Zakładka „Do sprawdzenia”: każdą pozycję z banku zatwierdzasz, poprawiasz albo pomijasz. Dopóki tego nie zrobisz, nie liczy się do budżetu. Licznik czekających pozycji widać w menu i na Pulpicie." },
+      { kind: "new", text: "Podpowiedzi kategorii: najpierw z Twoich wcześniejszych wpisów (ten sam sklep, ten sam przelew), dla nowych pozycji od Claude. Numery kont i kart nie są wysyłane." },
+      { kind: "new", text: "Bez podwójnego liczenia: płatność z wyciągu, która pasuje do zeskanowanego paragonu albo ręcznego wpisu (ta sama kwota, do 3 dni różnicy), można połączyć jednym kliknięciem. Przy skanowaniu paragonu aplikacja proponuje zastąpienie płatności z wyciągu rozbiciem z paragonu." },
+      { kind: "improved", text: "Przelewy własne, oszczędności i doładowania Revoluta/PayPala są oznaczane do pominięcia. Ponowne wczytanie tego samego wyciągu niczego nie dubluje." },
+    ],
+  },
+  {
     version: "1.0.0",
     date: "2026-11-19",
     title: "Pierwsza wersja",

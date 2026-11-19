@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-route
 import { Layout } from "./components/Layout";
 import { Notice, Spinner, ToastProvider } from "./components/ui";
 import { DataProvider, useData } from "./lib/DataContext";
+import { ImportPage } from "./pages/Import";
 import { configured, supabase } from "./lib/supabase";
 import { ChangelogPage } from "./pages/Changelog";
 import { Dashboard } from "./pages/Dashboard";
@@ -37,6 +38,7 @@ function Shell() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/transakcje" element={<TransactionsPage />} />
+        <Route path="/import" element={<ImportPage />} />
         <Route path="/skanuj" element={<ScanPage />} />
         <Route path="/raporty" element={<ReportsPage />} />
         <Route path="/ustawienia" element={<SettingsPage />} />

@@ -1,6 +1,6 @@
-import { Plus, Search, X } from "lucide-react";
+import { FileUp, Plus, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { MonthPicker, TransactionList } from "../components/finance";
 import { Card, EmptyState, PageHeader, Segmented } from "../components/ui";
 import { inMonth, totals, fold } from "../engine/stats";
@@ -40,6 +40,9 @@ export function TransactionsPage() {
       <PageHeader eyebrow="Transakcje" title={searching ? "Wyniki wyszukiwania" : "Historia"}
         actions={<>
           {!searching && <MonthPicker month={month} onChange={setMonth} />}
+          <Link to="/import" className="btn btn-secondary"><FileUp className="size-4" /> Import z banku
+            {data!.pending.length > 0 && <span className="rounded-full bg-amber-500 px-1.5 text-[11px] text-white">{data!.pending.length}</span>}
+          </Link>
           <button className="btn btn-primary hidden sm:inline-flex" onClick={() => openEditor()}><Plus className="size-4" /> Dodaj</button>
         </>} />
 

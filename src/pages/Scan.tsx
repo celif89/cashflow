@@ -4,9 +4,10 @@ import { useNavigate } from "react-router-dom";
 import { Card, Combobox, confirmAction, cx, EmptyState, Field, Modal, Notice, NumberInput, PageHeader, Spinner, useAction } from "../components/ui";
 import { today } from "../engine/dates";
 import { round2, sum } from "../engine/money";
+import { bankTransactionForReceipt } from "../engine/bank";
 import { groupByCategory, itemsGap, receiptTransactions, sanitizeScan } from "../engine/receipt";
 import type { Receipt, ReceiptItem } from "../engine/types";
-import { deleteReceipt, insertReceipt, insertTransactions } from "../lib/data";
+import { deleteReceipt, insertReceipt, insertTransactions, replaceBankTransaction } from "../lib/data";
 import { useData } from "../lib/DataContext";
 import { dayLabel, money } from "../lib/format";
 import { CategoryIcon } from "../lib/icons";
@@ -25,6 +26,7 @@ export function ScanPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [split, setSplit] = useState(true);
   const [keepImage, setKeepImage] = useState(true);
+  const [replaceBank, setReplaceBank] = useState(true);
   const [zoom, setZoom] = useState(false);
   const [openReceipt, setOpenReceipt] = useState<Receipt | null>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -73,6 +75,8 @@ export function ScanPage() {
       const image_path = keepImage && img ? await uploadReceiptImage(img.blob) : null;
       const receipt_id = await insertReceipt({ ...r, image_path });
       await insertTransactions(rows.map((t) => ({ ...t, receipt_id })));
+      // ten zakup był już w budżecie z wyciągu – zostaje rozbicie z paragonu, bez dublowania
+      if (bankTwin && replaceBank) await replaceBankTransaction(bankTwin, receipt_id);
     }, rows.length > 1 ? `Zapisano paragon jako ${rows.length} wydatki` : "Zapisano paragon");
     if (ok) reset();
   }
@@ -80,6 +84,7 @@ export function ScanPage() {
   const groups = draft && draft.total ? groupByCategory({ total: draft.total, items: draft.items }) : [];
   const gap = draft && draft.total ? itemsGap({ total: draft.total, items: draft.items }) : 0;
   const receipts = data!.receipts.slice(0, 12);
+  const bankTwin = draft?.total ? bankTransactionForReceipt(draft.total, draft.day, data!.transactions) : null;
 
   return (
     <>
@@ -195,6 +200,12 @@ export function ScanPage() {
                   Zachowaj zdjęcie (gwarancja, zwrot)
                 </label>
               </div>
+              {bankTwin && (
+                <label className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
+                  <input type="checkbox" className="mt-0.5 size-4 accent-brand-600" checked={replaceBank} onChange={(e) => setReplaceBank(e.target.checked)} />
+                  <span>Ten zakup już jest w budżecie z wyciągu ({bankTwin.merchant || "płatność"}, {dayLabel(bankTwin.day)}, {money(bankTwin.amount)}). Zastąp go paragonem, żeby nie liczyć dwa razy.</span>
+                </label>
+              )}
               <ul className="mt-3 space-y-1.5">
                 {(split ? groups : [{ category_id: groups[0]?.category_id ?? fallbackCategory, amount: draft.total ?? 0 }]).map((g) => {
                   const c = g.category_id !== null ? categoryById.get(g.category_id) : undefined;

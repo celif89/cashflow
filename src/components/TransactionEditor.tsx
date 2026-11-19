@@ -75,7 +75,9 @@ export function TransactionEditor() {
           <Segmented value={kind} onChange={(k) => { setKind(k); setCategoryId(null); }}
             options={[{ value: "expense", label: "Wydatek" }, { value: "income", label: "Przychód" }]} />
           {existing?.receipt_id && <Badge tone="brand"><Receipt className="size-3" /> z paragonu</Badge>}
+          {existing?.bank_ref && !existing.receipt_id && <Badge tone="slate">z wyciągu</Badge>}
         </div>
+        {existing?.bank_text && <p className="-mt-2 text-xs text-slate-500 dark:text-slate-400">Opis z banku: {existing.bank_text}</p>}
 
         <Field label="Kwota">
           <NumberInput value={amount} onChange={setAmount} suffix="zł" placeholder="0,00" autoFocus={!existing} />

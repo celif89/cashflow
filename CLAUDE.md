@@ -13,3 +13,5 @@
 - Drobne poprawki zbieraj i wypychaj razem jako jedno wydanie. Wyjątek: pilny błąd, który blokuje korzystanie z aplikacji.
 - Zmiany schematu bazy: nowy plik w `supabase/migrations/` (nie edytuj już wgranych) i krok w INSTRUKCJA.md.
 - Klucz `ANTHROPIC_API_KEY` nigdy z przedrostkiem `VITE_` (trafiłby do przeglądarki).
+- Pozycje z banku mają `status = 'pending'` i nie liczą się do budżetu – `loadAll` rozdziela je na `data.pending`.
+- Nie commituj prawdziwych wyciągów ani danych z nich; testy używają zmyślonych danych (`tests/bank.test.ts`).

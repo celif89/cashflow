@@ -3,8 +3,8 @@
 // Wywołać może wyłącznie zalogowany użytkownik aplikacji (sprawdzamy token Supabase).
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { guard, json } from "../lib/common.mts";
 
 const ReceiptSchema = z.object({
   merchant: z.string().nullable().describe("Krótka nazwa sklepu, np. „Biedronka”, „Orlen”, „Rossmann”; null, gdy nieczytelna"),
@@ -29,24 +29,12 @@ Zasady:
 - category_id wybieraj wyłącznie z podanej listy kategorii użytkownika. Przypisuj każdą pozycję osobno – na jednym paragonie mogą być np. jedzenie i chemia.
 - Jeśli zdjęcie nie przedstawia paragonu ani faktury, zwróć pustą listę pozycji, total 0, merchant null i date null.`;
 
-const json = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8" } });
-
 const MEDIA = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export default async (req: Request) => {
-  if (req.method !== "POST") return json(405, { error: "Tylko POST" });
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return json(500, { error: "Brak klucza ANTHROPIC_API_KEY w ustawieniach Netlify (Site configuration → Environment variables)." });
-
   // tylko zalogowani użytkownicy aplikacji
-  const url = process.env.VITE_SUPABASE_URL, anon = process.env.VITE_SUPABASE_ANON_KEY;
-  const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!url || !anon) return json(500, { error: "Brak VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY w ustawieniach Netlify." });
-  if (!token) return json(401, { error: "Brak logowania." });
-  const { data: auth, error: authError } = await createClient(new URL(url).origin, anon.trim()).auth.getUser(token);
-  if (authError || !auth.user) return json(401, { error: "Sesja wygasła – zaloguj się ponownie." });
+  const denied = await guard(req);
+  if (denied) return denied;
 
   let body: { image?: string; mediaType?: string; categories?: { id: number; name: string }[] };
   try {
@@ -60,7 +48,7 @@ export default async (req: Request) => {
   if (image.length > 5_500_000) return json(413, { error: "Zdjęcie jest za duże." });
   const categories = (body.categories ?? []).slice(0, 100).map((c) => `${Number(c.id)}: ${String(c.name).slice(0, 60)}`).join("\n");
 
-  const client = new Anthropic({ apiKey, timeout: 55_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 55_000, maxRetries: 1 });
   try {
     const msg = await client.beta.messages.parse({
       model: process.env.RECEIPT_MODEL || "claude-opus-5-5",

@@ -22,6 +22,11 @@ Najprościej użyć **tego samego projektu Supabase co FV Meter**: tabele Cashfl
 Ten sam plik zakłada też prywatny „kubełek” `cf-receipts` na zdjęcia paragonów
 (Supabase → **Storage**). Każde konto widzi tylko swoje zdjęcia.
 
+5. Kliknij **New query** jeszcze raz i tak samo uruchom drugi plik (import z banku, wersja 1.1.0):
+   https://github.com/celif89/cashflow/blob/claude/gracious-lovelace-4mtl7k/supabase/migrations/20261120000000_bank_import.sql
+
+> **Masz już wersję 1.0.0?** Uruchom tylko drugi plik (punkt 5). Dotychczasowe dane zostają.
+
 ## Krok 2: Klucz do skanowania paragonów
 
 1. Wejdź na **https://console.anthropic.com** i załóż konto (albo zaloguj się).
@@ -78,6 +83,32 @@ Bez klucza aplikacja działa normalnie, tylko przycisk skanowania pokaże błąd
 
 Jeśli odczyt kończy się błędem „trwał za długo”, spróbuj ponownie. Darmowy Netlify przerywa funkcje
 po kilkudziesięciu sekundach, a długie, pogniecione paragony czyta się dłużej.
+
+## Import z banku
+
+1. Pobierz wyciąg:
+   - **Alior Bank**: w bankowości internetowej wyciąg miesięczny w PDF (ten sam, który dostajesz co miesiąc),
+   - **inny bank**: historia rachunku jako plik **CSV**.
+2. **Transakcje → Import z banku → Wybierz plik wyciągu**. Plik jest czytany w przeglądarce,
+   do bazy trafiają tylko operacje.
+3. Przy PDF zobaczysz, czy suma wpływów i wydatków zgadza się z wyciągiem. Przy CSV kolumny
+   rozpoznają się same; jeśli coś się nie zgadza, rozwiń **Kolumny pliku** i wskaż datę, kwotę i opis
+   (układ zostanie zapamiętany dla tego banku).
+4. **Dodaj … do sprawdzenia**. Aplikacja podpowie kategorie: najpierw z Twoich wcześniejszych wpisów,
+   a pozycje, których nie zna, opisze Claude (wysyłany jest tylko opis i kwota, bez numerów kont i kart).
+5. Na liście **Do sprawdzenia** każdą pozycję:
+   - **Dodaj** – trafia do budżetu (możesz wcześniej zmienić kategorię i nazwę),
+   - **Połącz** – gdy aplikacja wykryje, że ten zakup już jest (zeskanowany paragon albo ręczny wpis
+     o tej samej kwocie, najwyżej 3 dni różnicy); zostaje tamten wpis, nic się nie dubluje,
+   - **Pomiń** – np. przelew na własne konto, na oszczędności albo doładowanie Revoluta.
+   **Zatwierdź pewne** dodaje hurtem tylko te pozycje, których kategoria pochodzi z Twojej historii.
+
+Ten sam wyciąg możesz wczytać drugi raz (albo wyciąg za okres, który częściowo się pokrywa):
+pozycje już rozpatrzone zostaną pominięte. Każda zatwierdzona pozycja uczy aplikację – przy
+następnym wyciągu Biedronka czy czynsz będą miały kategorię od razu.
+
+Paragon zeskanowany już po imporcie: przy zapisie aplikacja zauważy płatność z wyciągu o tej
+samej kwocie i zaproponuje zastąpienie jej rozbiciem z paragonu.
 
 ## Konto dla drugiej osoby
 

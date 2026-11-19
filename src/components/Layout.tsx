@@ -50,7 +50,12 @@ function useNewVersion(): [boolean, () => void] {
 
 export function Layout({ children }: { children: ReactNode }) {
   const [isNew, markSeen] = useNewVersion();
-  const { openEditor } = useData();
+  const { openEditor, data } = useData();
+  const pending = data?.pending.length ?? 0;
+  const badge = (to: string) => to === "/transakcje" && pending > 0
+    ? <span className="absolute top-1 right-1/2 translate-x-5 rounded-full bg-amber-500 px-1.5 text-[10px] leading-4 font-bold text-white lg:static lg:ml-auto lg:translate-x-0 lg:px-2 lg:text-[11px] lg:leading-5"
+        title={`${pending} pozycji z banku do sprawdzenia`}>{pending}</span>
+    : null;
   return (
     <div className="min-h-dvh lg:pl-72">
       {/* boczne menu – komputer */}
@@ -67,7 +72,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 ? "bg-ink-900 text-white shadow-lg shadow-ink-900/20 dark:bg-white dark:text-ink-900"
                 : "text-slate-600 hover:bg-slate-900/5 dark:text-slate-300 dark:hover:bg-white/5",
             )}>
-              <Icon className="size-[18px]" /> {label}
+              <Icon className="size-[18px]" /> {label} {badge(to)}
             </NavLink>
           ))}
         </nav>
@@ -110,10 +115,10 @@ export function Layout({ children }: { children: ReactNode }) {
       <nav className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-5 rounded-3xl border border-white/60 bg-white/90 p-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] shadow-2xl shadow-slate-900/15 backdrop-blur-xl lg:hidden dark:border-white/10 dark:bg-ink-900/90">
         {NAV.map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => cx(
-            "flex flex-col items-center gap-0.5 rounded-2xl py-2 text-[10.5px] font-semibold transition",
+            "relative flex flex-col items-center gap-0.5 rounded-2xl py-2 text-[10.5px] font-semibold transition",
             isActive ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900" : "text-slate-500 dark:text-slate-400",
           )}>
-            <Icon className="size-5" /> {label}
+            <Icon className="size-5" /> {label} {badge(to)}
           </NavLink>
         ))}
       </nav>

@@ -11,6 +11,8 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
   build: {
+    // pdf.js (~500 kB) ładuje się dopiero na ekranie importu
+    chunkSizeWarningLimit: 600,
     rolldownOptions: {
       output: {
         // biblioteki w osobnych plikach – przeglądarka trzyma je w pamięci między wydaniami
