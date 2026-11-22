@@ -9,6 +9,7 @@ import { deleteRecurring, insertRecurring, type RecurringInput, updateRecurring 
 import { useData } from "../lib/DataContext";
 import { dayLabel, money, moneyRound } from "../lib/format";
 import { CategoryIcon } from "../lib/icons";
+import { MigrationNotice } from "../components/finance";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -23,6 +24,7 @@ export function RecurringPage() {
   const { busy, run } = useAction(reload);
   const [edit, setEdit] = useState<Recurring | RecurringInput | null>(null);
   const list = data!.recurring;
+  const notReady = data!.missing.includes("recurring");
   const now = today();
   const suggestions = useMemo(() => suggestRecurring(data!.transactions, list, now).slice(0, 6), [data, list, now]);
   const active = list.filter((r) => r.active && (!r.end_date || r.end_date >= now));
@@ -38,7 +40,9 @@ export function RecurringPage() {
     <>
       <PageHeader eyebrow="Ustawienia" title="Stałe płatności"
         subtitle="Abonamenty, rachunki, podatki, wypłata. W dniu terminu płatność trafia do sprawdzenia – zatwierdzasz ją jednym kliknięciem."
-        actions={<button className="btn btn-primary" onClick={() => setEdit(blank())}><Plus className="size-4" /> Nowa</button>} />
+        actions={notReady ? undefined : <button className="btn btn-primary" onClick={() => setEdit(blank())}><Plus className="size-4" /> Nowa</button>} />
+
+      {notReady && <div className="mb-4"><MigrationNotice k="recurring" /></div>}
 
       {active.length > 0 && (
         <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-lg">
@@ -47,7 +51,7 @@ export function RecurringPage() {
         </div>
       )}
 
-      {suggestions.length > 0 && (
+      {!notReady && suggestions.length > 0 && (
         <Card className="mb-4" title="Wykryte w historii" icon={<Sparkles className="size-4" />}
           subtitle="Te płatności powtarzają się co miesiąc. Dodaj je, a kolejne same pojawią się do zatwierdzenia.">
           <ul className="divide-y divide-slate-100 dark:divide-white/5">
@@ -77,7 +81,7 @@ export function RecurringPage() {
         <div className="px-3 py-3 sm:px-4">
           {list.length === 0
             ? <EmptyState icon={<CalendarClock className="size-6" />} title="Brak stałych płatności"
-                action={<button className="btn btn-primary" onClick={() => setEdit(blank())}><Plus className="size-4" /> Dodaj pierwszą</button>}>
+                action={notReady ? undefined : <button className="btn btn-primary" onClick={() => setEdit(blank())}><Plus className="size-4" /> Dodaj pierwszą</button>}>
                 Np. Netflix co miesiąc 15., rachunek za prąd co 2 miesiące, podatek od nieruchomości co kwartał, wypłata 10. każdego miesiąca.
               </EmptyState>
             : <ul className="divide-y divide-slate-100 dark:divide-white/5">

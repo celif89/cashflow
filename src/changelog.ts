@@ -12,6 +12,15 @@ export const APP_VERSION: string = __APP_VERSION__;
 
 export const RELEASES: Release[] = [
   {
+    version: "1.3.1",
+    date: "2026-11-22",
+    title: "Czytelna informacja o brakującym kroku w Supabase",
+    changes: [
+      { kind: "fixed", text: "Gdy w Supabase nie uruchomiono pliku SQL z nowszej wersji, zamiast angielskiego błędu „Could not find the table…” aplikacja mówi po polsku, który plik uruchomić, i podaje do niego link." },
+      { kind: "improved", text: "Do czasu uruchomienia pliku pole „Powtarzaj” jest ukryte, a ekrany stałych płatności i importu z banku pokazują instrukcję zamiast kończyć się błędem." },
+    ],
+  },
+  {
     version: "1.3.0",
     date: "2026-11-22",
     title: "Ostrzeżenie przed podwójnym wpisem",

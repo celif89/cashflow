@@ -1,4 +1,5 @@
 import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
+import { friendlyError } from "../lib/migrations";
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 export function cx(...c: (string | false | null | undefined)[]) {
@@ -325,7 +326,7 @@ export function useAction(reload: () => Promise<void>) {
       if (okText) toast({ text: okText, tone: "ok", action: undo });
       return true;
     } catch (e) {
-      toast({ text: e instanceof Error ? e.message : String(e), tone: "error" });
+      toast({ text: friendlyError(e instanceof Error ? e.message : String(e)), tone: "error" });
       return false;
     } finally {
       setBusy(false);

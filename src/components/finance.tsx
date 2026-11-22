@@ -4,7 +4,8 @@ import type { Transaction } from "../engine/types";
 import { useData } from "../lib/DataContext";
 import { dayLong, money, monthName, signedMoney } from "../lib/format";
 import { CategoryIcon } from "../lib/icons";
-import { cx } from "./ui";
+import { type MigrationKey, MIGRATIONS, migrationUrl } from "../lib/migrations";
+import { cx, Notice } from "./ui";
 
 export function MonthPicker({ month, onChange }: { month: string; onChange: (m: string) => void }) {
   const isNow = month === thisMonth();
@@ -67,5 +68,17 @@ export function TransactionList({ txs }: { txs: Transaction[] }) {
         );
       })}
     </div>
+  );
+}
+
+/** Informacja, że dla tej funkcji trzeba uruchomić plik SQL w Supabase. */
+export function MigrationNotice({ k }: { k: MigrationKey }) {
+  const m = MIGRATIONS[k];
+  return (
+    <Notice tone="warn" action={<a href={migrationUrl(k)} target="_blank" rel="noreferrer" className="btn btn-secondary -my-1.5 py-1.5 text-xs">Otwórz plik SQL</a>}>
+      <b>Jeszcze jeden krok w Supabase.</b> Funkcja „{m.what}” (wersja {m.version}) potrzebuje nowych tabel:
+      otwórz plik <span className="font-mono text-xs">{m.file}</span>, skopiuj całość, w Supabase wejdź w <b>SQL Editor → New query</b>,
+      wklej i kliknij <b>Run</b>. Potem odśwież tę stronę.
+    </Notice>
   );
 }

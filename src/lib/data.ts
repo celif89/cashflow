@@ -3,6 +3,7 @@ import { DEFAULT_CATEGORIES } from "../engine/defaults";
 import { today } from "../engine/dates";
 import { missingDues, recurringRef, refOf } from "../engine/recurring";
 import type { Category, NewTransaction, Receipt, Recurring, Transaction } from "../engine/types";
+import { type MigrationKey, missingMigration } from "./migrations";
 import { supabase } from "./supabase";
 
 export interface AppData {
@@ -15,6 +16,8 @@ export interface AppData {
   importRefs: Set<string>;
   /** stałe płatności */
   recurring: Recurring[];
+  /** funkcje, dla których w Supabase nie uruchomiono jeszcze pliku migracji */
+  missing: MigrationKey[];
   receipts: Receipt[];
   settings: Record<string, string>;
 }
@@ -40,15 +43,22 @@ async function fetchAll<T>(table: string, order: [string, boolean][]): Promise<T
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 
 export async function loadAll(): Promise<AppData> {
+  const missing = new Set<MigrationKey>();
+  // tabela z nowszej wersji, której jeszcze nie ma w bazie → pusta lista i informacja w aplikacji
+  const optional = <T,>(p: Promise<T[]>) => p.catch((e: unknown) => {
+    const k = missingMigration(e instanceof Error ? e.message : String(e));
+    if (k) missing.add(k);
+    return [] as T[];
+  });
   let [categories, transactions, receipts, settings, refs, recurring] = await Promise.all([
     fetchAll<Category>("cf_categories", [["position", true], ["id", true]]),
     fetchAll<Transaction>("cf_transactions", [["day", false], ["id", false]]),
     fetchAll<Receipt>("cf_receipts", [["day", false], ["id", false]]),
     fetchAll<{ key: string; value: string }>("cf_settings", [["key", true]]),
     // tabela z wersji 1.1.0 – gdy jeszcze jej nie ma, aplikacja działa dalej (bez importu)
-    fetchAll<{ ref: string }>("cf_import_refs", [["ref", true]]).catch(() => [] as { ref: string }[]),
+    optional(fetchAll<{ ref: string }>("cf_import_refs", [["ref", true]])),
     // tabela z wersji 1.2.0 – gdy jej nie ma, aplikacja działa dalej (bez stałych płatności)
-    fetchAll<Recurring>("cf_recurring", [["start_date", true], ["id", true]]).catch(() => [] as Recurring[]),
+    optional(fetchAll<Recurring>("cf_recurring", [["start_date", true], ["id", true]])),
   ]);
   const rec = recurring.map((r) => ({ ...r, amount: Number(r.amount), category_id: num(r.category_id) }));
   // stałe płatności, których termin minął – do zatwierdzenia
@@ -67,6 +77,7 @@ export async function loadAll(): Promise<AppData> {
     pending: txs.filter((t) => t.status === "pending").sort((a, b) => a.day.localeCompare(b.day) || a.id - b.id),
     importRefs: new Set(refs.map((r) => r.ref)),
     recurring: rec,
+    missing: [...missing],
     receipts: receipts.map((r) => ({ ...r, total: Number(r.total), items: (r.items ?? []).map((i) => ({ ...i, amount: Number(i.amount) })) })),
     settings: Object.fromEntries(settings.map((s) => [s.key, s.value ?? ""])),
   };

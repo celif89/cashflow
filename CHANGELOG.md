@@ -1,5 +1,12 @@
 # Historia zmian
 
+## 1.3.1 – 2026-11-22
+
+Czytelna informacja o brakującym kroku w Supabase.
+
+- Poprawione: gdy w Supabase nie uruchomiono pliku SQL z nowszej wersji, zamiast angielskiego błędu „Could not find the table…” aplikacja mówi po polsku, który plik uruchomić, i podaje link.
+- Ulepszone: do czasu uruchomienia pliku pole „Powtarzaj” jest ukryte, a ekrany stałych płatności i importu z banku pokazują instrukcję.
+
 ## 1.3.0 – 2026-11-22
 
 Ostrzeżenie przed podwójnym wpisem.

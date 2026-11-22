@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Card, cx, Notice, PageHeader, Spinner, useAction, useToast } from "../components/ui";
 import { type Layout, layoutOk } from "../engine/bank";
 import { round2 } from "../engine/money";
+import { MigrationNotice } from "../components/finance";
 import { insertPending, saveSetting } from "../lib/data";
 import { useData } from "../lib/DataContext";
 import { dayLabel, money, plural, signedMoney } from "../lib/format";
@@ -76,6 +77,8 @@ export function ImportPage() {
       <input ref={fileRef} type="file" className="hidden" accept=".pdf,.csv,.txt,application/pdf,text/csv"
         onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ""; }} />
 
+      {data!.missing.includes("bank") && <div className="mb-4"><MigrationNotice k="bank" /></div>}
+
       {!file && (
         <Card>
           {stage.kind === "error" && <div className="mb-4"><Notice tone="error">{stage.message}</Notice></div>}
@@ -83,7 +86,7 @@ export function ImportPage() {
             ? <div className="py-6"><Spinner label={stage.label} /></div>
             : (
               <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-                <button className="btn btn-primary py-3" onClick={() => fileRef.current?.click()}><FileUp className="size-4" /> Wybierz plik wyciągu</button>
+                <button className="btn btn-primary py-3" disabled={data!.missing.includes("bank")} onClick={() => fileRef.current?.click()}><FileUp className="size-4" /> Wybierz plik wyciągu</button>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   <b>Alior Bank:</b> wyciąg PDF (Historia → Wyciągi). <b>Inny bank:</b> historia rachunku jako CSV.
                   Plik jest czytany w przeglądarce; pozycje, które już wczytałeś, zostaną pominięte.

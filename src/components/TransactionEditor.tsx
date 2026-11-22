@@ -144,7 +144,7 @@ export function TransactionEditor() {
           <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="opcjonalnie" />
         </Field>
 
-        {!existing?.recurring_id && !existing?.receipt_id && (
+        {!existing?.recurring_id && !existing?.receipt_id && !data.missing.includes("recurring") && (
           <Field label="Powtarzaj" hint={repeat ? `${frequencyLabel({ every_months: repeat, start_date: day })} – kolejne płatności pojawią się w „Do sprawdzenia”. Zmienisz to w Ustawieniach → Stałe płatności.` : undefined}>
             <select className="input" value={repeat} onChange={(e) => setRepeat(Number(e.target.value))}>
               <option value={0}>Nie – jednorazowo</option>
