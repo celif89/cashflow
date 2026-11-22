@@ -60,7 +60,8 @@
 
 @layer components {
   .card {
-    @apply rounded-3xl border border-white/70 bg-white/90 shadow-[0_1px_2px_rgb(15_23_42/0.04),0_8px_24px_-12px_rgb(15_23_42/0.12)]
+    /* min-w-0: karta w siatce nie rozpycha się do szerokości najdłuższego wiersza (telefon) */
+    @apply min-w-0 rounded-3xl border border-white/70 bg-white/90 shadow-[0_1px_2px_rgb(15_23_42/0.04),0_8px_24px_-12px_rgb(15_23_42/0.12)]
       backdrop-blur-sm dark:border-white/5 dark:bg-ink-900/80 dark:shadow-none;
   }
   .input {

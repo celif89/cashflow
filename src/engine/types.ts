@@ -29,6 +29,9 @@ export interface Transaction {
   bank_text?: string | null;
   /** skąd jest podpowiedziana kategoria */
   category_source?: "history" | "ai" | null;
+  /** płatność ze stałej pozycji (np. Netflix) i jej termin */
+  recurring_id?: number | null;
+  recurring_due?: string | null;
 }
 
 export type NewTransaction = Omit<Transaction, "id" | "created_at">;
@@ -57,4 +60,20 @@ export interface ScanResult {
   date: string | null;
   total: number;
   items: ReceiptItem[];
+}
+
+/** Stała płatność: co `every_months` miesięcy, w dniu miesiąca z `start_date`. */
+export interface Recurring {
+  id: number;
+  name: string;
+  kind: Kind;
+  amount: number;
+  /** kwota zmienna (prąd, woda) – `amount` jest orientacyjna */
+  variable_amount: boolean;
+  category_id: number | null;
+  merchant: string | null;
+  every_months: number;
+  start_date: string;
+  end_date: string | null;
+  active: boolean;
 }

@@ -40,9 +40,12 @@ export function TransactionsPage() {
       <PageHeader eyebrow="Transakcje" title={searching ? "Wyniki wyszukiwania" : "Historia"}
         actions={<>
           {!searching && <MonthPicker month={month} onChange={setMonth} />}
-          <Link to="/import" className="btn btn-secondary"><FileUp className="size-4" /> Import z banku
-            {data!.pending.length > 0 && <span className="rounded-full bg-amber-500 px-1.5 text-[11px] text-white">{data!.pending.length}</span>}
-          </Link>
+          {data!.pending.length > 0 && (
+            <Link to="/do-sprawdzenia" className="btn btn-secondary">Do sprawdzenia
+              <span className="rounded-full bg-amber-500 px-1.5 text-[11px] text-white">{data!.pending.length}</span>
+            </Link>
+          )}
+          <Link to="/import" className="btn btn-secondary"><FileUp className="size-4" /> Import z banku</Link>
           <button className="btn btn-primary hidden sm:inline-flex" onClick={() => openEditor()}><Plus className="size-4" /> Dodaj</button>
         </>} />
 

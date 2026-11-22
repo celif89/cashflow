@@ -1,11 +1,11 @@
 // Wykresy (Recharts). Zasady: jedna oś Y, cienkie słupki z zaokrąglonym końcem, dyskretna siatka,
 // podpowiedź po najechaniu/dotknięciu, legenda przy co najmniej dwóch seriach.
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useEffect, useState } from "react";
 
 /** Kolory serii – jasny / ciemny motyw (sprawdzone pod kątem daltonizmu, ustalona kolejność). */
-const LIGHT = { s1: "#2a78d6", s2: "#eb6834", s3: "#1baf7a", muted: "#94a3b8", tick: "#64748b", grid: "rgba(148,163,184,0.25)" };
-const DARK = { s1: "#3987e5", s2: "#d95926", s3: "#199e70", muted: "#64748b", tick: "#94a3b8", grid: "rgba(148,163,184,0.14)" };
+const LIGHT = { s1: "#2a78d6", s2: "#eb6834", s3: "#1baf7a", muted: "#94a3b8", tick: "#64748b", grid: "rgba(148,163,184,0.25)", surface: "#ffffff" };
+const DARK = { s1: "#3987e5", s2: "#d95926", s3: "#199e70", muted: "#64748b", tick: "#94a3b8", grid: "rgba(148,163,184,0.14)", surface: "#0c1229" };
 
 export function usePalette() {
   const q = typeof window !== "undefined" ? window.matchMedia("(prefers-color-scheme: dark)") : null;
@@ -132,5 +132,56 @@ export function RankBars({ rows, fmt, onPick }: {
         );
       })}
     </ul>
+  );
+}
+
+export interface DonutSlice { key: string; name: string; amount: number; share: number; color: string; icon?: React.ReactNode; hint?: string }
+
+/**
+ * Wykres kołowy (pierścień) z sumą w środku i legendą z kwotami – kolor nigdy nie jest jedyną
+ * informacją: każdy kawałek ma w legendzie nazwę, kwotę i udział.
+ */
+export function Donut({ slices, total, fmt, onPick, centerLabel = "razem" }: {
+  slices: DonutSlice[]; total: number; fmt: Fmt; onPick?: (key: string) => void; centerLabel?: string;
+}) {
+  const p = usePalette();
+  const [hover, setHover] = useState<number | null>(null);
+  const active = hover !== null ? slices[hover] : null;
+  return (
+    // legenda obok pierścienia tylko w szerokiej karcie, w wąskiej – pod nim
+    <div className="@container"><div className="flex flex-col items-center gap-5 @lg:flex-row">
+      <div className="relative size-48 shrink-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={slices} dataKey="amount" nameKey="name" innerRadius="62%" outerRadius="100%" startAngle={90} endAngle={-270}
+              stroke={p.surface} strokeWidth={2} isAnimationActive={false}
+              onMouseEnter={(_, i) => setHover(i)} onMouseLeave={() => setHover(null)}
+              onClick={(_, i) => onPick?.(slices[i].key)} style={onPick ? { cursor: "pointer" } : undefined}>
+              {slices.map((s, i) => <Cell key={s.key} fill={s.color} fillOpacity={hover === null || hover === i ? 1 : 0.35} />)}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+          <span className="max-w-28 truncate text-[11px] text-slate-500 dark:text-slate-400">{active ? active.name : centerLabel}</span>
+          <span className="font-display text-xl font-bold tnum">{fmt(active ? active.amount : total)}</span>
+          {active && <span className="text-xs text-slate-500 tnum dark:text-slate-400">{Math.round(active.share * 100)}%</span>}
+        </div>
+      </div>
+      <ul className="w-full min-w-0 space-y-1">
+        {slices.map((s, i) => (
+          <li key={s.key}>
+            <button type="button" disabled={!onPick}
+              onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onClick={() => onPick?.(s.key)}
+              className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left text-sm enabled:hover:bg-slate-900/[0.03] dark:enabled:hover:bg-white/[0.04]">
+              <span className="size-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
+              {s.icon}
+              <span className="min-w-0 flex-1 truncate">{s.name}{s.hint && <span className="ml-1 text-xs text-slate-400">{s.hint}</span>}</span>
+              <span className="shrink-0 font-semibold tnum">{fmt(s.amount)}</span>
+              <span className="w-9 shrink-0 text-right text-xs text-slate-500 tnum dark:text-slate-400">{Math.round(s.share * 100)}%</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div></div>
   );
 }

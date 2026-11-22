@@ -1,21 +1,29 @@
-import { ArrowRight, FileUp, Plus, ScanLine, TrendingDown, TrendingUp, Wallet } from "lucide-react";
-import { useMemo } from "react";
+import { ArrowRight, CalendarClock, FileUp, Plus, ScanLine, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Lines, RankBars, usePalette } from "../components/charts";
+import { Donut, Lines, RankBars, usePalette } from "../components/charts";
 import { MonthPicker, TransactionList } from "../components/finance";
-import { Card, EmptyState, Notice, PageHeader, Stat } from "../components/ui";
-import { addMonths, daysInMonth, thisMonth, today } from "../engine/dates";
-import { budgets, byCategory, cumulative, forecast, inMonth, totals } from "../engine/stats";
+import { Card, EmptyState, Notice, PageHeader, Segmented, Stat } from "../components/ui";
+import { addMonths, daysInMonth, parseDay, thisMonth, toDay, today } from "../engine/dates";
+import { CATEGORY_COLORS } from "../engine/defaults";
+import { upcoming } from "../engine/recurring";
+import { budgets, byCategory, cumulative, donutSlices, forecast, inMonth, totals } from "../engine/stats";
 import { useData } from "../lib/DataContext";
-import { axisMoney, money, moneyRound, monthName, percent, plural, txCount } from "../lib/format";
+import { axisMoney, dayLabel, money, moneyRound, monthName, percent, plural, txCount } from "../lib/format";
 import { CategoryIcon } from "../lib/icons";
 import { useMonthParam } from "../lib/month";
+
+type CatView = "donut" | "list";
+const VIEW_KEY = "cf.catView";
+const storedView = (): CatView => { try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "donut"; } catch { return "donut"; } };
 
 export function Dashboard() {
   const { data, openEditor } = useData();
   const [month, setMonth] = useMonthParam();
   const navigate = useNavigate();
   const p = usePalette();
+  const [view, setViewState] = useState<CatView>(storedView);
+  const setView = (v: CatView) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* tryb prywatny */ } };
   const txs = data!.transactions;
   const categories = data!.categories;
   const prev = addMonths(month, -1);
@@ -28,9 +36,10 @@ export function Dashboard() {
     const t = totals(cur), tp = totals(before);
     // porównanie z poprzednim miesiącem „do tego samego dnia”, żeby 10 listopada nie zestawiać z całym październikiem
     const prevSameDay = totals(before.filter((x) => Number(x.day.slice(8, 10)) <= upto)).expense;
+    const cats = byCategory(cur, categories);
     return {
-      cur, t, tp, prevSameDay,
-      cats: byCategory(cur, categories),
+      cur, t, tp, prevSameDay, cats,
+      slices: donutSlices(cats, CATEGORY_COLORS.slice(0, 8)),
       budgetRows: budgets(cur, categories),
       line: cumulative(txs, month, prev, upto),
       fc: isNow ? forecast(t.expense, month, upto) : null,
@@ -38,10 +47,20 @@ export function Dashboard() {
   }, [txs, categories, month, prev, upto, isNow]);
 
   const pendingCount = data!.pending.length;
+  // najbliższe stałe płatności (30 dni) i ile z nich przypada jeszcze w tym miesiącu
+  const now = today();
+  const soon = useMemo(() => {
+    const until = new Date(parseDay(now)); until.setDate(until.getDate() + 30);
+    return upcoming(data!.recurring, now, toDay(until));
+  }, [data, now]);
+  const leftThisMonth = soon.filter((u) => u.r.kind === "expense" && u.due.slice(0, 7) === thisMonth()).reduce((a, u) => a + u.r.amount, 0);
+  const openCategory = (key: string) => key === "rest"
+    ? navigate("/raporty")
+    : navigate(`/transakcje?${new URLSearchParams({ ...(month !== thisMonth() ? { m: month } : {}), k: key })}`);
   const pendingBanner = pendingCount > 0 && (
     <div className="mb-4">
-      <Notice tone="warn" action={<Link to="/import" className="btn btn-secondary -my-1.5 py-1.5 text-xs">Sprawdź</Link>}>
-        Do sprawdzenia z banku: {plural(pendingCount, "pozycja", "pozycje", "pozycji")}. Dopóki ich nie zatwierdzisz, nie liczą się do budżetu.
+      <Notice tone="warn" action={<Link to="/do-sprawdzenia" className="btn btn-secondary -my-1.5 py-1.5 text-xs">Sprawdź</Link>}>
+        Do sprawdzenia: {plural(pendingCount, "pozycja", "pozycje", "pozycji")}. Dopóki ich nie zatwierdzisz, nie liczą się do budżetu.
       </Notice>
     </div>
   );
@@ -101,19 +120,24 @@ export function Dashboard() {
             ]} />
         </Card>
 
-        <Card className="lg:col-span-2" title="Na co idą pieniądze" subtitle="Kliknij kategorię, żeby zobaczyć transakcje">
+        <Card className="lg:col-span-2" title="Na co idą pieniądze" subtitle="Kliknij kategorię, żeby zobaczyć transakcje"
+          actions={m.cats.length > 0 ? <Segmented value={view} onChange={setView} options={[{ value: "donut", label: "Wykres" }, { value: "list", label: "Lista" }]} /> : undefined}>
           {m.cats.length === 0
             ? <p className="text-sm text-slate-500">Brak wydatków w tym miesiącu.</p>
-            : <RankBars fmt={moneyRound}
-                onPick={(key) => navigate(`/transakcje?${new URLSearchParams({ ...(month !== thisMonth() ? { m: month } : {}), k: key })}`)}
-                rows={m.cats.slice(0, 8).map((r) => ({
-                  key: String(r.category?.id ?? "none"),
-                  label: <><CategoryIcon icon={r.category?.icon} color={r.category?.color} size="sm" /><span className="truncate">{r.category?.name ?? "Bez kategorii"}</span></>,
-                  value: r.amount,
-                  hint: percent(r.share),
-                  limit: r.category?.monthly_limit,
-                }))} />}
-          {m.cats.length > 8 && <p className="mt-3 text-xs text-slate-500">+ {m.cats.length - 8} pozostałych kategorii w Raportach</p>}
+            : view === "donut"
+              ? <Donut total={m.t.expense} fmt={moneyRound} onPick={openCategory} centerLabel="wydatki"
+                  slices={m.slices.map((s) => ({ ...s, hint: s.others ? `(${s.others})` : undefined }))} />
+              : <>
+                  <RankBars fmt={moneyRound} onPick={openCategory}
+                    rows={m.cats.slice(0, 8).map((r) => ({
+                      key: String(r.category?.id ?? "none"),
+                      label: <><CategoryIcon icon={r.category?.icon} color={r.category?.color} size="sm" /><span className="truncate">{r.category?.name ?? "Bez kategorii"}</span></>,
+                      value: r.amount,
+                      hint: percent(r.share),
+                      limit: r.category?.monthly_limit,
+                    }))} />
+                  {m.cats.length > 8 && <p className="mt-3 text-xs text-slate-500">+ {m.cats.length - 8} pozostałych kategorii w Raportach</p>}
+                </>}
         </Card>
       </div>
 
@@ -125,7 +149,33 @@ export function Dashboard() {
           </div>
         </Card>
 
-        <Card className="lg:col-span-2" title="Limity miesięczne"
+        <div className="min-w-0 space-y-4 lg:col-span-2">
+        <Card title="Najbliższe stałe płatności" icon={<CalendarClock className="size-4" />}
+          subtitle={soon.length && leftThisMonth > 0 ? `do końca miesiąca jeszcze ${moneyRound(leftThisMonth)}` : "30 dni"}
+          actions={<Link to="/stale-platnosci" className="btn btn-ghost -my-1 text-xs">{data!.recurring.length ? "Zarządzaj" : "Dodaj"}</Link>}>
+          {soon.length === 0
+            ? <p className="text-sm text-slate-500 dark:text-slate-400">
+                {data!.recurring.length ? "W najbliższych 30 dniach nie ma stałych płatności." : "Dodaj abonamenty, rachunki i podatki – w dniu terminu pojawią się do zatwierdzenia, a tutaj zobaczysz, co jeszcze przed Tobą."}
+              </p>
+            : <ul className="space-y-2">
+                {soon.slice(0, 6).map(({ r, due }) => {
+                  const c = r.category_id !== null ? data!.categories.find((x) => x.id === r.category_id) : undefined;
+                  return (
+                    <li key={`${r.id}-${due}`} className="flex items-center gap-2.5 text-sm">
+                      <CategoryIcon icon={c?.icon} color={c?.color} size="sm" />
+                      <span className="min-w-0 flex-1 truncate">{r.name}</span>
+                      <span className="shrink-0 text-xs text-slate-500 tnum dark:text-slate-400">{dayLabel(due).slice(0, 5)}</span>
+                      <span className={`w-24 shrink-0 text-right font-semibold tnum ${r.kind === "income" ? "text-emerald-600 dark:text-emerald-400" : ""}`}>
+                        {r.variable_amount ? "≈ " : ""}{r.kind === "income" ? "+" : "−"}{moneyRound(r.amount)}
+                      </span>
+                    </li>
+                  );
+                })}
+                {soon.length > 6 && <li className="text-xs text-slate-500">+ {soon.length - 6} kolejnych</li>}
+              </ul>}
+        </Card>
+
+        <Card title="Limity miesięczne"
           subtitle={m.budgetRows.length ? "Pionowa kreska = limit" : undefined}
           actions={<Link to="/ustawienia" className="btn btn-ghost -my-1 text-xs">Ustaw</Link>}>
           {m.budgetRows.length === 0
@@ -151,6 +201,7 @@ export function Dashboard() {
                 })}
               </ul>}
         </Card>
+        </div>
       </div>
     </>
   );

@@ -1,14 +1,13 @@
-import { ArrowLeftRight, Check, CheckCheck, FileUp, Link2, Sparkles, SkipForward, History } from "lucide-react";
+import { FileUp } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { Badge, Card, cx, EmptyState, Notice, PageHeader, Spinner, useAction, useToast } from "../components/ui";
-import { type Layout, layoutOk, type Match, matchExisting, ownTransferReason } from "../engine/bank";
+import { Link, useNavigate } from "react-router-dom";
+import { Card, cx, Notice, PageHeader, Spinner, useAction, useToast } from "../components/ui";
+import { type Layout, layoutOk } from "../engine/bank";
 import { round2 } from "../engine/money";
-import type { NewTransaction, Transaction } from "../engine/types";
-import { confirmPending, insertPending, mergePending, saveSetting, skipPending } from "../lib/data";
+import { insertPending, saveSetting } from "../lib/data";
 import { useData } from "../lib/DataContext";
-import { dayLabel, money, signedMoney } from "../lib/format";
-import { CategoryIcon } from "../lib/icons";
-import { csvLines, isConfident, knownRefs, prepare, readStatement, type StatementFile, suggestWithAi } from "../lib/importer";
+import { dayLabel, money, plural, signedMoney } from "../lib/format";
+import { csvLines, knownRefs, prepare, readStatement, type StatementFile, suggestWithAi } from "../lib/importer";
 
 type Stage = { kind: "idle" } | { kind: "working"; label: string } | { kind: "error"; message: string };
 
@@ -21,9 +20,8 @@ export function ImportPage() {
   const [file, setFile] = useState<StatementFile | null>(null);
   const [layout, setLayout] = useState<Layout | null>(null);
 
+  const navigate = useNavigate();
   const pending = data!.pending;
-  const matches = useMemo(() => matchExisting(pending, data!.receipts, data!.transactions), [pending, data]);
-  const confident = pending.filter((t) => isConfident(t, matches.has(t.id)));
 
   // linie z pliku (CSV – według bieżącego układu kolumn)
   const lines = useMemo(() => {
@@ -65,6 +63,7 @@ export function ImportPage() {
     setStage({ kind: "idle" });
     if (ok) {
       setFile(null);
+      navigate("/do-sprawdzenia");
       if (aiError) toast({ tone: "error", text: `Części pozycji nie udało się przypisać kategorii (${aiError}) – wybierz je ręcznie.` });
     }
   }
@@ -125,23 +124,13 @@ export function ImportPage() {
         </Card>
       )}
 
-      <div className="mt-6">
-        <Card title={`Do sprawdzenia (${pending.length})`} pad={false}
-          subtitle={pending.length ? "Zatwierdź, popraw albo pomiń każdą pozycję. Dopóki tego nie zrobisz, nie liczy się do budżetu." : undefined}
-          actions={confident.length > 0 ? (
-            <button className="btn btn-secondary" disabled={busy}
-              title="Pozycje z kategorią z Twojej historii, bez podejrzenia duplikatu i przelewu własnego"
-              onClick={() => void run(() => confirmPending(confident.map((t) => ({ t }))), `Zatwierdzono ${confident.length} pozycji`)}>
-              <CheckCheck className="size-4" /> Zatwierdź pewne ({confident.length})
-            </button>
-          ) : undefined}>
-          <div className="px-3 pb-4 sm:px-4">
-            {pending.length === 0
-              ? <EmptyState icon={<CheckCheck className="size-6" />} title="Wszystko sprawdzone">Po wczytaniu wyciągu pozycje pojawią się tutaj.</EmptyState>
-              : <ul className="space-y-3">{pending.map((t) => <PendingRow key={t.id} t={t} match={matches.get(t.id)} busy={busy} run={run} />)}</ul>}
-          </div>
-        </Card>
-      </div>
+      {pending.length > 0 && (
+        <div className="mt-4">
+          <Notice tone="warn" action={<Link to="/do-sprawdzenia" className="btn btn-secondary -my-1.5 py-1.5 text-xs">Sprawdź</Link>}>
+            Do sprawdzenia: {plural(pending.length, "pozycja", "pozycje", "pozycji")}.
+          </Notice>
+        </div>
+      )}
     </>
   );
 }
@@ -206,67 +195,5 @@ function LayoutEditor({ rows, layout, onChange }: { rows: string[][]; layout: La
         </div>
       </div>
     </details>
-  );
-}
-
-function PendingRow({ t, match, busy, run }: {
-  t: Transaction; match?: Match; busy: boolean;
-  run: (fn: () => Promise<unknown>, ok?: string) => Promise<boolean>;
-}) {
-  const { activeCategories, categoryById } = useData();
-  const [categoryId, setCategoryId] = useState<number | null>(t.category_id);
-  const [merchant, setMerchant] = useState(t.merchant ?? "");
-  const cats = activeCategories(t.kind);
-  const c = categoryId !== null ? categoryById.get(categoryId) : undefined;
-  const own = ownTransferReason(t.bank_text ?? "");
-  const patch: Partial<NewTransaction> = {
-    category_id: categoryId, merchant: merchant.trim() || null,
-    category_source: categoryId === t.category_id ? t.category_source ?? null : null,
-  };
-  const add = () => run(() => confirmPending([{ t, patch }]), "Dodano do budżetu");
-  const skip = () => run(() => skipPending([t]), "Pominięto");
-  const merge = () => match && run(() => mergePending(t, match), "Połączono – zakup liczy się raz");
-
-  return (
-    <li className={cx("rounded-2xl border p-3 sm:p-4", match || own ? "border-amber-300/70 bg-amber-50/40 dark:border-amber-500/30 dark:bg-amber-500/5" : "border-slate-200 dark:border-white/10")}>
-      <div className="flex items-start gap-3">
-        <CategoryIcon icon={c?.icon} color={c?.color} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-xs text-slate-500 tnum dark:text-slate-400">{dayLabel(t.day)}</span>
-            {t.category_source === "history" && categoryId === t.category_id && <Badge tone="green"><History className="size-3" /> z historii</Badge>}
-            {t.category_source === "ai" && categoryId === t.category_id && <Badge tone="brand"><Sparkles className="size-3" /> podpowiedź</Badge>}
-          </div>
-          <p className="mt-0.5 line-clamp-2 text-xs text-slate-500 dark:text-slate-400" title={t.bank_text ?? ""}>{t.bank_text}</p>
-        </div>
-        <div className={cx("shrink-0 text-base font-semibold tnum", t.kind === "income" && "text-emerald-600 dark:text-emerald-400")}>{signedMoney(t.amount, t.kind)}</div>
-      </div>
-
-      {match && (
-        <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-800 dark:text-amber-200">
-          <Link2 className="mt-0.5 size-3.5 shrink-0" />
-          Ten zakup już jest w aplikacji: {match.type === "receipt" ? "paragon" : "wpis"} „{match.label}” z {dayLabel(match.day)}. Połącz, żeby nie liczyć go dwa razy.
-        </p>
-      )}
-      {own && !match && (
-        <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-800 dark:text-amber-200">
-          <ArrowLeftRight className="mt-0.5 size-3.5 shrink-0" /> {own}
-        </p>
-      )}
-
-      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-        <input className="input py-2 text-sm" value={merchant} onChange={(e) => setMerchant(e.target.value)} placeholder={t.kind === "expense" ? "Sklep / komu" : "Od kogo"} />
-        <select className="input py-2 text-sm" value={categoryId ?? ""} onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : null)}>
-          <option value="">— wybierz kategorię —</option>
-          {cats.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
-        </select>
-        <div className="flex gap-2">
-          {match && <button className="btn btn-primary flex-1 py-2" disabled={busy} onClick={merge}><Link2 className="size-4" /> Połącz</button>}
-          <button className={cx("btn flex-1 py-2", match || own ? "btn-secondary" : "btn-primary")} disabled={busy || categoryId === null} onClick={add}
-            title={categoryId === null ? "Najpierw wybierz kategorię" : undefined}><Check className="size-4" /> Dodaj</button>
-          <button className={cx("btn py-2", own && !match ? "btn-primary" : "btn-ghost")} disabled={busy} onClick={skip}><SkipForward className="size-4" /> Pomiń</button>
-        </div>
-      </div>
-    </li>
   );
 }

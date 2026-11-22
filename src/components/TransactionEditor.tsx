@@ -1,9 +1,10 @@
-import { Receipt, Trash2 } from "lucide-react";
+import { CalendarClock, Receipt, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toDay, today } from "../engine/dates";
 import { round2 } from "../engine/money";
+import { FREQUENCIES, frequencyLabel } from "../engine/recurring";
 import type { Kind, NewTransaction } from "../engine/types";
-import { deleteTransactions, insertTransactions, updateTransaction } from "../lib/data";
+import { deleteTransactions, insertRecurring, insertTransactions, linkFirstPayment, updateTransaction } from "../lib/data";
 import { useData } from "../lib/DataContext";
 import { CategoryIcon } from "../lib/icons";
 import { Badge, Combobox, cx, Field, Modal, NumberInput, Segmented, useAction } from "./ui";
@@ -21,6 +22,8 @@ export function TransactionEditor() {
   const [day, setDay] = useState(today());
   const [merchant, setMerchant] = useState("");
   const [note, setNote] = useState("");
+  /** 0 = jednorazowo; inaczej co ile miesięcy powtarzać (nowa stała płatność) */
+  const [repeat, setRepeat] = useState(0);
 
   // przy każdym otwarciu: dane edytowanej transakcji albo pusty formularz
   useEffect(() => {
@@ -32,6 +35,7 @@ export function TransactionEditor() {
     setDay(existing?.day ?? editor.day ?? today());
     setMerchant(existing?.merchant ?? "");
     setNote(existing?.note ?? "");
+    setRepeat(0);
   }, [editor, existing]);
 
   if (!editor || !data) return null;
@@ -48,9 +52,19 @@ export function TransactionEditor() {
       merchant: merchant.trim() || null, note: note.trim() || null, receipt_id: existing?.receipt_id ?? null,
     };
     const ok = await run(async () => {
+      let id = existing?.id;
       if (existing) await updateTransaction(existing.id, row);
-      else await insertTransactions([row]);
-    }, existing ? "Zapisano zmiany" : kind === "expense" ? "Dodano wydatek" : "Dodano przychód");
+      else id = (await insertTransactions([row]))[0];
+      // „powtarzaj”: ta transakcja jest pierwszą płatnością nowej stałej pozycji
+      if (repeat && id) {
+        const recId = await insertRecurring({
+          name: row.merchant || (categoryId !== null ? categoryById.get(categoryId)?.name : null) || (kind === "expense" ? "Stały wydatek" : "Stały przychód"),
+          kind, amount: row.amount, variable_amount: false, category_id: categoryId, merchant: row.merchant,
+          every_months: repeat, start_date: day, end_date: null, active: true,
+        });
+        await linkFirstPayment(id, recId, day);
+      }
+    }, repeat ? "Zapisano – kolejne płatności pojawią się do zatwierdzenia" : existing ? "Zapisano zmiany" : kind === "expense" ? "Dodano wydatek" : "Dodano przychód");
     if (ok) closeEditor();
   }
 
@@ -119,6 +133,18 @@ export function TransactionEditor() {
         <Field label="Notatka">
           <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="opcjonalnie" />
         </Field>
+
+        {!existing?.recurring_id && !existing?.receipt_id && (
+          <Field label="Powtarzaj" hint={repeat ? `${frequencyLabel({ every_months: repeat, start_date: day })} – kolejne płatności pojawią się w „Do sprawdzenia”. Zmienisz to w Ustawieniach → Stałe płatności.` : undefined}>
+            <select className="input" value={repeat} onChange={(e) => setRepeat(Number(e.target.value))}>
+              <option value={0}>Nie – jednorazowo</option>
+              {FREQUENCIES.map((f) => <option key={f.value} value={f.value}>{f.label[0].toUpperCase() + f.label.slice(1)}</option>)}
+            </select>
+          </Field>
+        )}
+        {existing?.recurring_id && (
+          <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><CalendarClock className="size-3.5" /> Płatność ze stałej pozycji – ustawienia w Ustawieniach → Stałe płatności.</p>
+        )}
         <button type="submit" className="hidden" />
       </form>
     </Modal>

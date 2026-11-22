@@ -1,6 +1,6 @@
 import { ChartColumn, LayoutDashboard, List, LogOut, Plus, ScanLine, Settings, Sparkles } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { APP_VERSION } from "../changelog";
 import { useData } from "../lib/DataContext";
 import { supabase } from "../lib/supabase";
@@ -9,10 +9,10 @@ import { cx } from "./ui";
 
 const NAV = [
   { to: "/", label: "Pulpit", icon: LayoutDashboard, end: true },
-  { to: "/transakcje", label: "Transakcje", icon: List },
+  { to: "/transakcje", label: "Transakcje", icon: List, also: ["/import", "/do-sprawdzenia"] },
   { to: "/skanuj", label: "Skanuj", icon: ScanLine },
   { to: "/raporty", label: "Raporty", icon: ChartColumn },
-  { to: "/ustawienia", label: "Ustawienia", icon: Settings },
+  { to: "/ustawienia", label: "Ustawienia", icon: Settings, also: ["/stale-platnosci", "/co-nowego"] },
 ];
 
 const SEEN_KEY = "cf.seenVersion";
@@ -51,10 +51,12 @@ function useNewVersion(): [boolean, () => void] {
 export function Layout({ children }: { children: ReactNode }) {
   const [isNew, markSeen] = useNewVersion();
   const { openEditor, data } = useData();
+  const { pathname } = useLocation();
+  const active = (isActive: boolean, also?: string[]) => isActive || !!also?.some((p) => pathname.startsWith(p));
   const pending = data?.pending.length ?? 0;
   const badge = (to: string) => to === "/transakcje" && pending > 0
     ? <span className="absolute top-1 right-1/2 translate-x-5 rounded-full bg-amber-500 px-1.5 text-[10px] leading-4 font-bold text-white lg:static lg:ml-auto lg:translate-x-0 lg:px-2 lg:text-[11px] lg:leading-5"
-        title={`${pending} pozycji z banku do sprawdzenia`}>{pending}</span>
+        title={`${pending} do sprawdzenia`}>{pending}</span>
     : null;
   return (
     <div className="min-h-dvh lg:pl-72">
@@ -65,10 +67,10 @@ export function Layout({ children }: { children: ReactNode }) {
           <Plus className="size-4" /> Dodaj wydatek
         </button>
         <nav className="mt-6 flex flex-1 flex-col gap-1">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
+          {NAV.map(({ to, label, icon: Icon, end, also }) => (
             <NavLink key={to} to={to} end={end} className={({ isActive }) => cx(
               "flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition",
-              isActive
+              active(isActive, also)
                 ? "bg-ink-900 text-white shadow-lg shadow-ink-900/20 dark:bg-white dark:text-ink-900"
                 : "text-slate-600 hover:bg-slate-900/5 dark:text-slate-300 dark:hover:bg-white/5",
             )}>
@@ -113,10 +115,10 @@ export function Layout({ children }: { children: ReactNode }) {
 
       {/* dolne menu – telefon */}
       <nav className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-5 rounded-3xl border border-white/60 bg-white/90 p-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] shadow-2xl shadow-slate-900/15 backdrop-blur-xl lg:hidden dark:border-white/10 dark:bg-ink-900/90">
-        {NAV.map(({ to, label, icon: Icon, end }) => (
+        {NAV.map(({ to, label, icon: Icon, end, also }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => cx(
             "relative flex flex-col items-center gap-0.5 rounded-2xl py-2 text-[10.5px] font-semibold transition",
-            isActive ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900" : "text-slate-500 dark:text-slate-400",
+            active(isActive, also) ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900" : "text-slate-500 dark:text-slate-400",
           )}>
             <Icon className="size-5" /> {label} {badge(to)}
           </NavLink>

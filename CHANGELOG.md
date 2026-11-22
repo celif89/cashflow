@@ -1,5 +1,16 @@
 # Historia zmian
 
+## 1.2.0 – 2026-11-22
+
+Wykres kołowy i stałe płatności.
+
+- Nowe: wykres kołowy na Pulpicie – na co poszły pieniądze w wybranym miesiącu (5 największych kategorii i „Pozostałe”); kliknięcie otwiera transakcje z kategorii; lista z limitami pod przełącznikiem „Lista”.
+- Nowe: stałe płatności – co miesiąc, co 2 miesiące, co kwartał, co pół roku albo co rok; w dniu terminu trafiają do „Do sprawdzenia”; przy kwocie zmiennej (prąd, woda) kwotę wpisujesz przy zatwierdzeniu.
+- Nowe: „Powtarzaj” przy dodawaniu wydatku – wpis staje się pierwszą płatnością nowej stałej pozycji.
+- Nowe: wykrywanie powtarzających się płatności w historii z propozycją dodania ich jako stałe.
+- Nowe: stałe płatności z najbliższych 30 dni na Pulpicie.
+- Ulepszone: „Do sprawdzenia” na osobnym ekranie; stała płatność, która przyszła też z wyciągu, jest proponowana do połączenia.
+
 ## 1.1.0 – 2026-11-19
 
 Import wyciągu z banku.

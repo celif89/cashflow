@@ -5,6 +5,8 @@ import { Layout } from "./components/Layout";
 import { Notice, Spinner, ToastProvider } from "./components/ui";
 import { DataProvider, useData } from "./lib/DataContext";
 import { ImportPage } from "./pages/Import";
+import { RecurringPage } from "./pages/Recurring";
+import { ReviewPage } from "./pages/Review";
 import { configured, supabase } from "./lib/supabase";
 import { ChangelogPage } from "./pages/Changelog";
 import { Dashboard } from "./pages/Dashboard";
@@ -39,6 +41,8 @@ function Shell() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/transakcje" element={<TransactionsPage />} />
         <Route path="/import" element={<ImportPage />} />
+        <Route path="/do-sprawdzenia" element={<ReviewPage />} />
+        <Route path="/stale-platnosci" element={<RecurringPage />} />
         <Route path="/skanuj" element={<ScanPage />} />
         <Route path="/raporty" element={<ReportsPage />} />
         <Route path="/ustawienia" element={<SettingsPage />} />

@@ -129,3 +129,32 @@ export function forecast(spent: number, month: string, uptoDay: number): number 
   if (uptoDay >= len) return spent;
   return Math.round((spent / uptoDay) * len);
 }
+
+export interface Slice { key: string; name: string; amount: number; share: number; color: string; category: Category | null; others?: number }
+
+/**
+ * Kawałki wykresu kołowego: do 6 kategorii, przy większej liczbie 5 największych + „Pozostałe”.
+ * Kolor to kolor kategorii; gdy dwie pokazane kategorie mają ten sam, druga dostaje
+ * pierwszy wolny kolor z palety (żeby kawałków nie dało się pomylić).
+ */
+export function donutSlices(rows: CategoryTotal[], palette: string[], max = 6): Slice[] {
+  const top = rows.length <= max ? rows : rows.slice(0, max - 1);
+  const rest = rows.slice(top.length);
+  const used = new Set<string>();
+  const pick = (want: string | null) => {
+    const c = want && !used.has(want.toLowerCase()) ? want : palette.find((p) => !used.has(p.toLowerCase())) ?? "#94a3b8";
+    used.add(c.toLowerCase());
+    return c;
+  };
+  const slices: Slice[] = top.map((r) => ({
+    key: String(r.category?.id ?? "none"), name: r.category?.name ?? "Bez kategorii", amount: r.amount, share: r.share,
+    category: r.category, color: pick(r.category ? r.category.color : "#64748b"),
+  }));
+  if (rest.length) {
+    slices.push({
+      key: "rest", name: "Pozostałe", category: null, others: rest.length, color: "#94a3b8",
+      amount: fromGr(rest.reduce((a, r) => a + toGr(r.amount), 0)), share: rest.reduce((a, r) => a + r.share, 0),
+    });
+  }
+  return slices;
+}

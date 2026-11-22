@@ -123,6 +123,8 @@ export async function suggestWithAi(rows: NewTransaction[], idx: number[], categ
   return error;
 }
 
-/** Pozycja „pewna”: kategoria z historii, nie przelew własny, nie pasuje do paragonu/wpisu. */
-export const isConfident = (t: Transaction, matched: boolean) =>
-  t.category_source === "history" && t.category_id !== null && !matched && !ownTransferReason(t.bank_text ?? "");
+/** Pozycja „pewna”: kategoria z historii (albo stała płatność o stałej kwocie), bez podejrzenia duplikatu i przelewu własnego. */
+export const isConfident = (t: Transaction, matched: boolean, variableAmount = false) =>
+  !matched && t.category_id !== null && (t.recurring_id
+    ? !variableAmount // stała płatność o stałej kwocie
+    : t.category_source === "history" && !ownTransferReason(t.bank_text ?? ""));

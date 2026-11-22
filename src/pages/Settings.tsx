@@ -1,4 +1,4 @@
-import { Archive, ArrowDown, ArrowUp, Download, Pencil, Plus, Sparkles, Tags, Trash2 } from "lucide-react";
+import { Archive, ArrowDown, ArrowUp, CalendarClock, Download, Pencil, Plus, Sparkles, Tags, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Badge, Card, confirmAction, cx, Field, Modal, NumberInput, PageHeader, Segmented, useAction } from "../components/ui";
@@ -80,7 +80,16 @@ export function SettingsPage() {
         )}
       </Card>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
+      <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <Card title="Stałe płatności" icon={<CalendarClock className="size-4" />}
+          subtitle="Abonamenty, rachunki, podatki i wypłata – w dniu terminu trafiają do sprawdzenia.">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            {data!.recurring.filter((r) => r.active).length
+              ? `Aktywnych: ${data!.recurring.filter((r) => r.active).length}.`
+              : "Nie masz jeszcze żadnych stałych płatności."}
+          </p>
+          <Link to="/stale-platnosci" className="btn btn-secondary mt-3">Zarządzaj</Link>
+        </Card>
         <Card title="Kopia danych" icon={<Download className="size-4" />} subtitle="Wszystkie transakcje w pliku CSV – otwiera się w Excelu.">
           <button className="btn btn-secondary" disabled={!data!.transactions.length}
             onClick={() => download(`cashflow-${today()}.csv`, transactionsCsv(data!.transactions, data!.categories))}>

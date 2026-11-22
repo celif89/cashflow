@@ -1,8 +1,8 @@
 # Cashflow
 
 Budżet domowy w przeglądarce: wydatki i przychody w kategoriach, wykresy, limity miesięczne,
-skanowanie paragonów zdjęciem z telefonu i import wyciągu z banku (PDF z Alior Banku albo CSV)
-z kolejką pozycji do zatwierdzenia.
+skanowanie paragonów zdjęciem z telefonu, import wyciągu z banku (PDF z Alior Banku albo CSV)
+i stałe płatności – wszystko z kolejką pozycji do zatwierdzenia.
 
 - React 19 + Vite + Tailwind 4, wykresy Recharts
 - dane i logowanie: Supabase (tabele `cf_*`, ten sam projekt co FV Meter i Kilometrówka)

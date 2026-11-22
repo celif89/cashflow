@@ -25,7 +25,11 @@ Ten sam plik zakłada też prywatny „kubełek” `cf-receipts` na zdjęcia par
 5. Kliknij **New query** jeszcze raz i tak samo uruchom drugi plik (import z banku, wersja 1.1.0):
    https://github.com/celif89/cashflow/blob/claude/gracious-lovelace-4mtl7k/supabase/migrations/20261120000000_bank_import.sql
 
-> **Masz już wersję 1.0.0?** Uruchom tylko drugi plik (punkt 5). Dotychczasowe dane zostają.
+6. I trzeci plik (stałe płatności, wersja 1.2.0):
+   https://github.com/celif89/cashflow/blob/claude/gracious-lovelace-4mtl7k/supabase/migrations/20261122000000_recurring.sql
+
+> **Aktualizujesz?** Uruchom tylko pliki, których jeszcze nie uruchamiałeś: z wersji 1.0.0 –
+> drugi i trzeci, z wersji 1.1.0 – tylko trzeci. Dotychczasowe dane zostają.
 
 ## Krok 2: Klucz do skanowania paragonów
 
@@ -109,6 +113,21 @@ następnym wyciągu Biedronka czy czynsz będą miały kategorię od razu.
 
 Paragon zeskanowany już po imporcie: przy zapisie aplikacja zauważy płatność z wyciągu o tej
 samej kwocie i zaproponuje zastąpienie jej rozbiciem z paragonu.
+
+## Stałe płatności
+
+**Ustawienia → Stałe płatności → Nowa.** Podajesz nazwę (np. Netflix), kwotę, kategorię, jak często
+(co miesiąc, co 2 miesiące, co kwartał, co pół roku, co rok) i datę najbliższej płatności – jej dzień
+miesiąca obowiązuje dalej (31. w krótszym miesiącu = ostatni dzień).
+
+- W dniu terminu płatność pojawia się w **Do sprawdzenia** – zatwierdzasz ją jednym kliknięciem.
+- **Kwota zmienna** (prąd, woda, gaz): przy zatwierdzeniu wpisujesz kwotę z rachunku.
+- Szybciej: przy dodawaniu wydatku wybierz **Powtarzaj → Co miesiąc** – ten wpis staje się pierwszą płatnością.
+- Po imporcie wyciągu aplikacja sama wykrywa płatności powtarzające się co miesiąc
+  (**Wykryte w historii**) i proponuje dodanie ich jednym kliknięciem.
+- Jeśli płatność przyszła też z wyciągu (np. Netflix kartą), aplikacja zaproponuje **Połącz** –
+  liczy się raz.
+- Na Pulpicie widać stałe płatności z najbliższych 30 dni i ile zostało do końca miesiąca.
 
 ## Konto dla drugiej osoby
 

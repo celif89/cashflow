@@ -12,6 +12,19 @@ export const APP_VERSION: string = __APP_VERSION__;
 
 export const RELEASES: Release[] = [
   {
+    version: "1.2.0",
+    date: "2026-11-22",
+    title: "Wykres kołowy i stałe płatności",
+    changes: [
+      { kind: "new", text: "Wykres kołowy na Pulpicie: na co poszły pieniądze w wybranym miesiącu – 5 największych kategorii i „Pozostałe”, z kwotami i udziałem. Kliknięcie kawałka otwiera transakcje z tej kategorii. Dawna lista z limitami jest pod przełącznikiem „Lista”." },
+      { kind: "new", text: "Stałe płatności (Ustawienia → Stałe płatności): co miesiąc, co 2 miesiące, co kwartał, co pół roku albo co rok, zawsze tego samego dnia. W dniu terminu płatność trafia do „Do sprawdzenia”. Przy kwocie zmiennej (prąd, woda) wpisujesz kwotę z rachunku przy zatwierdzeniu." },
+      { kind: "new", text: "Przy dodawaniu wydatku można wybrać „Powtarzaj” – ten wpis staje się pierwszą płatnością nowej stałej pozycji." },
+      { kind: "new", text: "Wykrywanie w historii: płatności powtarzające się co miesiąc (np. Netflix z wyciągu) aplikacja proponuje dodać jako stałe jednym kliknięciem." },
+      { kind: "new", text: "Pulpit pokazuje stałe płatności z najbliższych 30 dni i ile z nich zostało do końca miesiąca." },
+      { kind: "improved", text: "„Do sprawdzenia” ma własny ekran. Stała płatność, która przyszła też z wyciągu, jest proponowana do połączenia – liczy się raz." },
+    ],
+  },
+  {
     version: "1.1.0",
     date: "2026-11-19",
     title: "Import wyciągu z banku",
