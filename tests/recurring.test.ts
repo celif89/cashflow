@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dueDates, frequencyLabel, matchRecurring, missingDues, monthlyCost, nextDue, nthDue, recurringRef, refOf, suggestRecurring, upcoming } from "../src/engine/recurring";
+import { dueDates, frequencyLabel, matchRecurring, missingDues, monthlyCost, nextDue, nthDue, plannedCumulative, recurringRef, refOf, suggestRecurring, upcoming } from "../src/engine/recurring";
 import { donutSlices, type CategoryTotal } from "../src/engine/stats";
 import type { Category, Recurring, Transaction } from "../src/engine/types";
 
@@ -105,5 +105,28 @@ describe("wykres kołowy", () => {
     expect(s).toHaveLength(6);
     expect(s[5]).toMatchObject({ key: "rest", name: "Pozostałe", amount: 160, others: 3 });
     expect(s[5].share).toBeCloseTo(0.16);
+  });
+});
+
+describe("plan stałych wydatków na miesiąc", () => {
+  it("narastająco dzień po dniu, tylko aktywne wydatki przypadające w tym miesiącu", () => {
+    const list = [
+      rec({ id: 1, amount: 43, start_date: "2026-01-15" }), // co miesiąc 15.
+      rec({ id: 2, name: "Czynsz", amount: 1850, start_date: "2026-01-05" }),
+      rec({ id: 3, name: "Podatek", amount: 312, every_months: 3, start_date: "2026-03-15" }), // mar, cze, wrz, gru
+      rec({ id: 4, name: "Woda", amount: 90, every_months: 2, start_date: "2026-01-20" }), // sty, mar, … lis – nie w grudniu
+      rec({ id: 5, name: "Wypłata", kind: "income", amount: 8400, start_date: "2026-01-10" }),
+      rec({ id: 6, name: "Siłownia", amount: 120, active: false, start_date: "2026-01-01" }),
+      rec({ id: 7, name: "Kurs", amount: 200, start_date: "2026-01-31" }), // grudzień ma 31 dni
+    ];
+    const p = plannedCumulative(list, "2026-12");
+    expect(p.byDay).toHaveLength(31);
+    expect(p.count).toBe(4);
+    expect(p.variable).toBe(0);
+    expect(p.total).toBe(43 + 1850 + 312 + 200);
+    expect(p.byDay[3]).toBe(0);
+    expect(p.byDay[4]).toBe(1850);
+    expect(p.byDay[14]).toBe(1850 + 43 + 312);
+    expect(p.byDay[30]).toBe(2405);
   });
 });

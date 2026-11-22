@@ -12,6 +12,14 @@ export const APP_VERSION: string = __APP_VERSION__;
 
 export const RELEASES: Release[] = [
   {
+    version: "1.4.0",
+    date: "2026-11-22",
+    title: "Plan stałych płatności na przyszły miesiąc",
+    changes: [
+      { kind: "new", text: "Na wykresie „Wydatki narastająco” trzecia, kropkowana linia: stałe płatności zaplanowane na przyszły miesiąc, narastająco dzień po dniu. Nad wykresem suma i liczba tych płatności. Rachunki o zmiennej kwocie liczą się według kwoty orientacyjnej." },
+    ],
+  },
+  {
     version: "1.3.1",
     date: "2026-11-22",
     title: "Czytelna informacja o brakującym kroku w Supabase",

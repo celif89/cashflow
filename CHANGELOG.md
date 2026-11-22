@@ -1,5 +1,11 @@
 # Historia zmian
 
+## 1.4.0 – 2026-11-22
+
+Plan stałych płatności na przyszły miesiąc.
+
+- Nowe: na wykresie „Wydatki narastająco” kropkowana linia ze stałymi płatnościami zaplanowanymi na przyszły miesiąc (narastająco dzień po dniu), a nad wykresem ich suma i liczba; rachunki o zmiennej kwocie według kwoty orientacyjnej.
+
 ## 1.3.1 – 2026-11-22
 
 Czytelna informacja o brakującym kroku w Supabase.

@@ -127,7 +127,9 @@ miesiąca obowiązuje dalej (31. w krótszym miesiącu = ostatni dzień).
   (**Wykryte w historii**) i proponuje dodanie ich jednym kliknięciem.
 - Jeśli płatność przyszła też z wyciągu (np. Netflix kartą), aplikacja zaproponuje **Połącz** –
   liczy się raz.
-- Na Pulpicie widać stałe płatności z najbliższych 30 dni i ile zostało do końca miesiąca.
+- Na Pulpicie widać stałe płatności z najbliższych 30 dni i ile zostało do końca miesiąca, a na wykresie
+  **Wydatki narastająco** kropkowana linia pokazuje, jak w przyszłym miesiącu będą narastać same stałe
+  płatności (bez codziennych zakupów).
 
 ## Ostrzeżenie przed podwójnym wpisem
 

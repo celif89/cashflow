@@ -6,7 +6,7 @@ import { MonthPicker, TransactionList } from "../components/finance";
 import { Card, EmptyState, Notice, PageHeader, Segmented, Stat } from "../components/ui";
 import { addMonths, daysInMonth, parseDay, thisMonth, toDay, today } from "../engine/dates";
 import { CATEGORY_COLORS } from "../engine/defaults";
-import { upcoming } from "../engine/recurring";
+import { plannedCumulative, upcoming } from "../engine/recurring";
 import { budgets, byCategory, cumulative, donutSlices, forecast, inMonth, totals } from "../engine/stats";
 import { useData } from "../lib/DataContext";
 import { axisMoney, dayLabel, money, moneyRound, monthName, percent, plural, txCount } from "../lib/format";
@@ -53,6 +53,18 @@ export function Dashboard() {
     const until = new Date(parseDay(now)); until.setDate(until.getDate() + 30);
     return upcoming(data!.recurring, now, toDay(until));
   }, [data, now]);
+  // plan na przyszły miesiąc ze stałych płatności – trzecia linia na wykresie (tylko przy bieżącym miesiącu)
+  const next = addMonths(thisMonth(), 1);
+  const planned = useMemo(() => (isNow ? plannedCumulative(data!.recurring, next) : null), [data, isNow, next]);
+  const showPlan = !!planned && planned.total > 0;
+  const lineData = useMemo(() => {
+    if (!showPlan) return m.line;
+    const len = Math.max(m.line.length, planned!.byDay.length);
+    return Array.from({ length: len }, (_, i) => ({
+      ...(m.line[i] ?? { day: i + 1, current: null, previous: null }),
+      planned: planned!.byDay[i] ?? null,
+    }));
+  }, [m.line, planned, showPlan]);
   const leftThisMonth = soon.filter((u) => u.r.kind === "expense" && u.due.slice(0, 7) === thisMonth()).reduce((a, u) => a + u.r.amount, 0);
   const openCategory = (key: string) => key === "rest"
     ? navigate("/raporty")
@@ -112,12 +124,22 @@ export function Dashboard() {
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-5">
-        <Card className="lg:col-span-3" title="Wydatki narastająco" subtitle={`${monthName(month)} na tle ${monthName(prev)}`}>
-          <Lines data={m.line} x="day" height={300} fmt={money} axisFmt={axisMoney} labelFmt={(d) => `${d}. dzień`}
+        <Card className="lg:col-span-3" title="Wydatki narastająco"
+          subtitle={showPlan
+            ? `${monthName(month)} na tle ${monthName(prev)} · ${monthName(next)}: stałe płatności ${moneyRound(planned!.total)} (${plural(planned!.count, "płatność", "płatności", "płatności")})`
+            : `${monthName(month)} na tle ${monthName(prev)}`}>
+          <Lines data={lineData} x="day" height={300} fmt={money} axisFmt={axisMoney} labelFmt={(d) => `${d}. dzień`}
             series={[
               { key: "current", name: monthName(month), color: p.s1 },
               { key: "previous", name: monthName(prev), color: p.muted, dashed: true },
+              ...(showPlan ? [{ key: "planned", name: `${monthName(next)} – plan (stałe)`, color: p.s2, dashed: "2 4" }] : []),
             ]} />
+          {showPlan && (
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              Kropkowana linia: stałe płatności zaplanowane na {monthName(next)}, bez codziennych zakupów
+              {planned!.variable ? "; rachunki o zmiennej kwocie liczone orientacyjnie" : ""}.
+            </p>
+          )}
         </Card>
 
         <Card className="lg:col-span-2" title="Na co idą pieniądze" subtitle="Kliknij kategorię, żeby zobaczyć transakcje"

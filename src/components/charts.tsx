@@ -20,7 +20,8 @@ export function usePalette() {
 }
 
 type Fmt = (v: number) => string;
-interface Series { key: string; name: string; color: string; dashed?: boolean }
+/** dashed: true = przerywana, tekst = własny wzór kresek (np. "2 4" – kropkowana) */
+interface Series { key: string; name: string; color: string; dashed?: boolean | string }
 
 function TooltipBox({ active, payload, label, fmt, labelFmt }: {
   active?: boolean; payload?: { name: string; value: number | null; color: string; stroke?: string }[]; label?: string | number;
@@ -44,7 +45,8 @@ function TooltipBox({ active, payload, label, fmt, labelFmt }: {
 }
 
 const legend = (
-  <Legend verticalAlign="top" align="left" height={30} iconType="circle" iconSize={8} itemSorter={null}
+  // bez stałej wysokości: na telefonie legenda w dwóch wierszach odsuwa wykres zamiast na niego nachodzić
+  <Legend verticalAlign="top" align="left" wrapperStyle={{ paddingBottom: 8 }} iconType="circle" iconSize={8} itemSorter={null}
     formatter={(v: string) => <span className="text-xs text-slate-500 dark:text-slate-400">{v}</span>} />
 );
 
@@ -91,7 +93,7 @@ export function Lines({ data, x, series, fmt, axisFmt, labelFmt, height = 220 }:
         {series.length > 1 && legend}
         {series.map((s) => (
           <Line key={s.key} type="monotone" dataKey={s.key} name={s.name} stroke={s.color} strokeWidth={2}
-            strokeDasharray={s.dashed ? "5 4" : undefined} dot={false} activeDot={{ r: 4, strokeWidth: 2 }} connectNulls={false} />
+            strokeDasharray={typeof s.dashed === "string" ? s.dashed : s.dashed ? "5 4" : undefined} dot={false} activeDot={{ r: 4, strokeWidth: 2 }} connectNulls={false} />
         ))}
       </LineChart>
     </ResponsiveContainer>

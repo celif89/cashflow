@@ -171,3 +171,33 @@ export function suggestRecurring(txs: Transaction[], existing: Recurring[], toda
   }
   return out.sort((a, b) => b.months - a.months || b.amount - a.amount);
 }
+
+export interface PlannedMonth {
+  /** suma stałych wydatków zaplanowanych w miesiącu */
+  total: number;
+  /** liczba płatności */
+  count: number;
+  /** ile z nich ma kwotę zmienną (liczoną orientacyjnie) */
+  variable: number;
+  /** narastająco: byDay[0] = do 1. dnia włącznie, byDay[n-1] = do ostatniego dnia */
+  byDay: number[];
+}
+
+/** Stałe wydatki przypadające w danym miesiącu, narastająco dzień po dniu (kwota zmienna – orientacyjna). */
+export function plannedCumulative(list: Recurring[], month: string): PlannedMonth {
+  const days = daysInMonth(month);
+  const perDay = Array(days + 1).fill(0);
+  let count = 0, variable = 0;
+  for (const r of list) {
+    if (!r.active || r.kind !== "expense") continue;
+    for (const due of dueDates(r, `${month}-01`, `${month}-${pad(days)}`)) {
+      perDay[Number(due.slice(8, 10))] += toGr(r.amount);
+      count++;
+      if (r.variable_amount) variable++;
+    }
+  }
+  const byDay: number[] = [];
+  let acc = 0;
+  for (let d = 1; d <= days; d++) { acc += perDay[d]; byDay.push(acc / 100); }
+  return { total: acc / 100, count, variable, byDay };
+}
