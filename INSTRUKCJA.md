@@ -129,6 +129,19 @@ miesiąca obowiązuje dalej (31. w krótszym miesiącu = ostatni dzień).
   liczy się raz.
 - Na Pulpicie widać stałe płatności z najbliższych 30 dni i ile zostało do końca miesiąca.
 
+## Ostrzeżenie przed podwójnym wpisem
+
+Gdy dodajesz wydatek, który w tym miesiącu już jest, nad przyciskiem pojawi się ostrzeżenie
+z istniejącym wpisem, a przycisk zmieni się na **Dodaj mimo to**. Aplikacja ostrzega, gdy:
+
+- ten sam sklep i ta sama kwota są już w tym miesiącu (np. drugi raz Netflix 43 zł),
+- to stała płatność, która w tym miesiącu już jest – także czekająca w **Do sprawdzenia**
+  (wtedy lepiej zatwierdzić tamtą pozycję),
+- to sklep, w którym zwykle płacisz raz w miesiącu (np. Tauron) – nawet z inną kwotą.
+
+Zakupy w tym samym sklepie kilka razy w miesiącu (Biedronka, stacja paliw) ostrzeżenia nie wywołują.
+Przy skanowaniu aplikacja ostrzega też, gdy ten sam paragon jest już zapisany.
+
 ## Konto dla drugiej osoby
 
 Każde konto ma osobne dane (tak jak w Kilometrówce).

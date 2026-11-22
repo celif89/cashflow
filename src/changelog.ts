@@ -12,6 +12,16 @@ export const APP_VERSION: string = __APP_VERSION__;
 
 export const RELEASES: Release[] = [
   {
+    version: "1.3.0",
+    date: "2026-11-22",
+    title: "Ostrzeżenie przed podwójnym wpisem",
+    changes: [
+      { kind: "new", text: "Przy dodawaniu wydatku aplikacja ostrzega, gdy w tym miesiącu taki wydatek już jest: ten sam sklep i ta sama kwota, stała płatność zapisana albo czekająca w „Do sprawdzenia” (np. drugi raz Netflix), albo sklep, w którym zwykle płacisz raz w miesiącu (np. Tauron), nawet z inną kwotą. Zakupy w Biedronce kilka razy w miesiącu nie wywołują ostrzeżenia." },
+      { kind: "new", text: "Przy skanowaniu: ostrzeżenie, gdy ten sam paragon (sklep, suma, dzień) jest już zapisany." },
+      { kind: "improved", text: "Ostrzeżenie nie blokuje zapisu – pokazuje istniejący wpis, a przycisk zmienia się na „Dodaj mimo to”." },
+    ],
+  },
+  {
     version: "1.2.0",
     date: "2026-11-22",
     title: "Wykres kołowy i stałe płatności",

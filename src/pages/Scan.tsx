@@ -5,6 +5,7 @@ import { Card, Combobox, confirmAction, cx, EmptyState, Field, Modal, Notice, Nu
 import { today } from "../engine/dates";
 import { round2, sum } from "../engine/money";
 import { bankTransactionForReceipt } from "../engine/bank";
+import { sameReceipt } from "../engine/duplicates";
 import { groupByCategory, itemsGap, receiptTransactions, sanitizeScan } from "../engine/receipt";
 import type { Receipt, ReceiptItem } from "../engine/types";
 import { deleteReceipt, insertReceipt, insertTransactions, replaceBankTransaction } from "../lib/data";
@@ -85,6 +86,7 @@ export function ScanPage() {
   const gap = draft && draft.total ? itemsGap({ total: draft.total, items: draft.items }) : 0;
   const receipts = data!.receipts.slice(0, 12);
   const bankTwin = draft?.total ? bankTransactionForReceipt(draft.total, draft.day, data!.transactions) : null;
+  const twinReceipt = draft ? sameReceipt({ day: draft.day, total: draft.total, merchant: draft.merchant.trim() || null }, data!.receipts) : null;
 
   return (
     <>
@@ -219,10 +221,18 @@ export function ScanPage() {
               </ul>
             </div>
 
+            {twinReceipt && (
+              <div className="mt-5">
+                <Notice tone="warn">
+                  Ten paragon wygląda na już zapisany: {twinReceipt.merchant || "paragon"} z {dayLabel(twinReceipt.day)} na {money(twinReceipt.total)}.
+                  Jeśli to inny zakup na tę samą kwotę, zapisz mimo to.
+                </Notice>
+              </div>
+            )}
             <div className="mt-5 flex flex-wrap justify-end gap-2">
               <button className="btn btn-secondary" onClick={reset}>Anuluj</button>
               <button className="btn btn-primary min-w-40" disabled={busy || !draft.total || draft.total <= 0} onClick={save}>
-                <Check className="size-4" /> {busy ? "Zapisywanie…" : "Zapisz paragon"}
+                <Check className="size-4" /> {busy ? "Zapisywanie…" : twinReceipt ? "Zapisz mimo to" : "Zapisz paragon"}
               </button>
             </div>
           </Card>

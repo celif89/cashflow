@@ -1,11 +1,14 @@
-import { CalendarClock, Receipt, Trash2 } from "lucide-react";
+import { AlertTriangle, CalendarClock, Receipt, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { toDay, today } from "../engine/dates";
 import { round2 } from "../engine/money";
+import { type Duplicate, findDuplicate } from "../engine/duplicates";
 import { FREQUENCIES, frequencyLabel } from "../engine/recurring";
 import type { Kind, NewTransaction } from "../engine/types";
 import { deleteTransactions, insertRecurring, insertTransactions, linkFirstPayment, updateTransaction } from "../lib/data";
 import { useData } from "../lib/DataContext";
+import { dayLabel, money, monthName } from "../lib/format";
 import { CategoryIcon } from "../lib/icons";
 import { Badge, Combobox, cx, Field, Modal, NumberInput, Segmented, useAction } from "./ui";
 
@@ -44,6 +47,9 @@ export function TransactionEditor() {
   const current = categoryId !== null ? categoryById.get(categoryId) : undefined;
   const choices = current && !cats.includes(current) ? [...cats, current] : cats;
   const valid = amount !== null && amount > 0 && /^\d{4}-\d{2}-\d{2}$/.test(day);
+  // ten sam wydatek drugi raz w tym miesiącu? (ostrzeżenie, nie blokada)
+  const dup = findDuplicate({ day, amount, kind, merchant: merchant.trim() || null, category_id: categoryId, excludeId: existing?.id },
+    [...data.transactions, ...data.pending], data.recurring);
 
   async function save() {
     if (!valid) return;
@@ -82,7 +88,9 @@ export function TransactionEditor() {
       footer={<>
         {existing && <button className="btn btn-danger mr-auto" disabled={busy} onClick={remove}><Trash2 className="size-4" /> Usuń</button>}
         <button className="btn btn-secondary" onClick={closeEditor}>Anuluj</button>
-        <button className="btn btn-primary min-w-28" disabled={!valid || busy} onClick={save}>{busy ? "Zapisywanie…" : "Zapisz"}</button>
+        <button className="btn btn-primary min-w-28" disabled={!valid || busy} onClick={save}>
+          {busy ? "Zapisywanie…" : dup ? (existing ? "Zapisz mimo to" : "Dodaj mimo to") : "Zapisz"}
+        </button>
       </>}>
       <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); void save(); }}>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -130,6 +138,8 @@ export function TransactionEditor() {
           </Field>
         </div>
 
+        {dup && <DuplicateWarning dup={dup} month={day.slice(0, 7)} onGoReview={closeEditor} />}
+
         <Field label="Notatka">
           <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="opcjonalnie" />
         </Field>
@@ -148,5 +158,38 @@ export function TransactionEditor() {
         <button type="submit" className="hidden" />
       </form>
     </Modal>
+  );
+}
+
+function DuplicateWarning({ dup, month, onGoReview }: { dup: Duplicate; month: string; onGoReview: () => void }) {
+  const first = dup.items[0];
+  const pending = dup.items.some((t) => t.status === "pending");
+  const where = monthName(month).split(" ")[0];
+  const head = {
+    same: `Taki sam wydatek jest już w tym miesiącu (${where}).`,
+    recurring: dup.reason === "recurring" ? `„${dup.recurring.name}” to stała płatność i w tym miesiącu (${where}) już jest.` : "",
+    monthly: `${first.merchant} płacisz zwykle raz w miesiącu, a w tym miesiącu (${where}) jest już wpis.`,
+  }[dup.reason];
+  return (
+    <div className="flex items-start gap-3 rounded-2xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
+      <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+      <div className="min-w-0">
+        <p className="font-medium">{head}</p>
+        <ul className="mt-1 space-y-0.5 text-xs">
+          {dup.items.slice(0, 3).map((t) => (
+            <li key={t.id} className="tnum">
+              {dayLabel(t.day).slice(0, 5)} · {t.merchant || "bez nazwy"} · {money(t.amount)}
+              {t.status === "pending" && <span className="ml-1 font-medium">(czeka w „Do sprawdzenia”)</span>}
+            </li>
+          ))}
+          {dup.items.length > 3 && <li>… i {dup.items.length - 3} kolejne</li>}
+        </ul>
+        <p className="mt-1.5 text-xs">
+          {pending
+            ? <>Zamiast dodawać nowy wpis, zatwierdź tamten w <Link to="/do-sprawdzenia" className="font-semibold underline" onClick={onGoReview}>Do sprawdzenia</Link>.</>
+            : "Jeśli to rzeczywiście druga płatność, zapisz mimo to."}
+        </p>
+      </div>
+    </div>
   );
 }

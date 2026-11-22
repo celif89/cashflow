@@ -1,5 +1,13 @@
 # Historia zmian
 
+## 1.3.0 – 2026-11-22
+
+Ostrzeżenie przed podwójnym wpisem.
+
+- Nowe: przy dodawaniu wydatku ostrzeżenie, gdy w tym miesiącu taki wydatek już jest – ten sam sklep i kwota, stała płatność zapisana albo czekająca w „Do sprawdzenia”, albo sklep, w którym zwykle płacisz raz w miesiącu (nawet z inną kwotą). Zakupy w Biedronce kilka razy w miesiącu nie wywołują ostrzeżenia.
+- Nowe: przy skanowaniu ostrzeżenie, gdy ten sam paragon jest już zapisany.
+- Ulepszone: ostrzeżenie nie blokuje zapisu – pokazuje istniejący wpis, a przycisk zmienia się na „Dodaj mimo to”.
+
 ## 1.2.0 – 2026-11-22
 
 Wykres kołowy i stałe płatności.
