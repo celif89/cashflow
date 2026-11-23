@@ -13,10 +13,18 @@ export function nthDue(r: Pick<Recurring, "start_date" | "every_months">, n: num
   return `${month}-${pad(day)}`;
 }
 
-/** Terminy w przedziale [from, to] (włącznie), z uwzględnieniem daty końca. */
-export function dueDates(r: Pick<Recurring, "start_date" | "every_months" | "end_date">, from: string, to: string, limit = 400): string[] {
+/** To, co wyznacza terminy: start, częstotliwość, data końca i ewentualne raty. */
+export type Schedule = Pick<Recurring, "start_date" | "every_months" | "end_date"> & Partial<Pick<Recurring, "installments_total" | "installments_paid_before">>;
+
+/** Ile rat zostało od terminu `start_date` (Infinity = zwykła stała płatność bez końca). */
+export const ratesFromStart = (r: Schedule) =>
+  r.installments_total ? Math.max(0, r.installments_total - (r.installments_paid_before ?? 0)) : Infinity;
+
+/** Terminy w przedziale [from, to] (włącznie), z uwzględnieniem daty końca i liczby rat. */
+export function dueDates(r: Schedule, from: string, to: string, limit = 400): string[] {
   const out: string[] = [];
-  for (let n = 0; n < limit; n++) {
+  const max = Math.min(limit, ratesFromStart(r));
+  for (let n = 0; n < max; n++) {
     const d = nthDue(r, n);
     if (d > to || (r.end_date && d > r.end_date)) break;
     if (d >= from) out.push(d);
@@ -200,4 +208,61 @@ export function plannedCumulative(list: Recurring[], month: string): PlannedMont
   let acc = 0;
   for (let d = 1; d <= days; d++) { acc += perDay[d]; byDay.push(acc / 100); }
   return { total: acc / 100, count, variable, byDay };
+}
+
+
+// --- raty ---------------------------------------------------------------------------------------
+
+/** Termin ostatniej raty (null: brak rat albo nic już nie zostało). */
+export function lastDue(r: Schedule): string | null {
+  const left = ratesFromStart(r);
+  if (!Number.isFinite(left) || left === 0) return null;
+  const d = nthDue(r, left - 1);
+  return r.end_date && d > r.end_date ? r.end_date : d;
+}
+
+/** Numer raty przypadającej w danym terminie (null, gdy to nie raty albo termin spoza harmonogramu). */
+export function installmentNo(r: Schedule, due: string): number | null {
+  if (!r.installments_total) return null;
+  const months = (Number(due.slice(0, 4)) - Number(r.start_date.slice(0, 4))) * 12 + Number(due.slice(5, 7)) - Number(r.start_date.slice(5, 7));
+  if (months < 0 || months % r.every_months !== 0) return null;
+  const no = (r.installments_paid_before ?? 0) + months / r.every_months + 1;
+  return no <= r.installments_total ? no : null;
+}
+
+export interface InstallmentStatus {
+  total: number;
+  /** spłacone: przed startem w aplikacji + zatwierdzone raty */
+  paid: number;
+  /** raty czekające w „Do sprawdzenia” */
+  pending: number;
+  remaining: number;
+  remainingAmount: number;
+  last: string | null;
+  done: boolean;
+}
+
+/** Postęp spłaty: liczą się raty zatwierdzone w aplikacji (od `start_date`) plus spłacone wcześniej. */
+export function installmentStatus(r: Recurring, txs: Transaction[]): InstallmentStatus | null {
+  if (!r.installments_total) return null;
+  let confirmed = 0, pending = 0;
+  for (const t of txs) {
+    if (t.recurring_id !== r.id || !t.recurring_due || t.recurring_due < r.start_date) continue;
+    if (t.status === "pending") pending++;
+    else confirmed++;
+  }
+  const total = r.installments_total;
+  const paid = Math.min(total, (r.installments_paid_before ?? 0) + confirmed);
+  const remaining = total - paid;
+  return { total, paid, pending, remaining, remainingAmount: (remaining * toGr(r.amount)) / 100, last: lastDue(r), done: remaining === 0 };
+}
+
+/**
+ * Poprawka „spłacono X rat”: harmonogram zaczyna się od następnego terminu po dzisiejszym, a X staje
+ * się liczbą rat spłaconych przed nim (raty zatwierdzone wcześniej przestają się doliczać).
+ */
+export function resetInstallments(r: Recurring, paidNow: number, today: string): Pick<Recurring, "start_date" | "installments_paid_before"> {
+  let n = 0;
+  while (nthDue(r, n) <= today && n < 1200) n++;
+  return { start_date: nthDue(r, n), installments_paid_before: Math.max(0, Math.min(paidNow, r.installments_total ?? paidNow)) };
 }

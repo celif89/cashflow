@@ -6,7 +6,7 @@ import { MonthPicker, TransactionList } from "../components/finance";
 import { Card, EmptyState, Notice, PageHeader, Segmented, Stat } from "../components/ui";
 import { addMonths, daysInMonth, parseDay, thisMonth, toDay, today } from "../engine/dates";
 import { CATEGORY_COLORS } from "../engine/defaults";
-import { plannedCumulative, upcoming } from "../engine/recurring";
+import { installmentNo, plannedCumulative, upcoming } from "../engine/recurring";
 import { budgets, byCategory, cumulative, donutSlices, forecast, inMonth, totals } from "../engine/stats";
 import { useData } from "../lib/DataContext";
 import { axisMoney, dayLabel, money, moneyRound, monthName, percent, plural, txCount } from "../lib/format";
@@ -185,7 +185,9 @@ export function Dashboard() {
                   return (
                     <li key={`${r.id}-${due}`} className="flex items-center gap-2.5 text-sm">
                       <CategoryIcon icon={c?.icon} color={c?.color} size="sm" />
-                      <span className="min-w-0 flex-1 truncate">{r.name}</span>
+                      <span className="min-w-0 flex-1 truncate">{r.name}
+                        {installmentNo(r, due) && <span className="ml-1 text-xs text-slate-500 dark:text-slate-400">rata {installmentNo(r, due)}/{r.installments_total}</span>}
+                      </span>
                       <span className="shrink-0 text-xs text-slate-500 tnum dark:text-slate-400">{dayLabel(due).slice(0, 5)}</span>
                       <span className={`w-24 shrink-0 text-right font-semibold tnum ${r.kind === "income" ? "text-emerald-600 dark:text-emerald-400" : ""}`}>
                         {r.variable_amount ? "≈ " : ""}{r.kind === "income" ? "+" : "−"}{moneyRound(r.amount)}

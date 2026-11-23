@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { dueDates, frequencyLabel, matchRecurring, missingDues, monthlyCost, nextDue, nthDue, plannedCumulative, recurringRef, refOf, suggestRecurring, upcoming } from "../src/engine/recurring";
+import {
+  dueDates, frequencyLabel, installmentNo, installmentStatus, lastDue, matchRecurring, missingDues, monthlyCost, nextDue, nthDue,
+  plannedCumulative, recurringRef, refOf, resetInstallments, suggestRecurring, upcoming,
+} from "../src/engine/recurring";
 import { donutSlices, type CategoryTotal } from "../src/engine/stats";
 import type { Category, Recurring, Transaction } from "../src/engine/types";
 
@@ -128,5 +131,55 @@ describe("plan stałych wydatków na miesiąc", () => {
     expect(p.byDay[4]).toBe(1850);
     expect(p.byDay[14]).toBe(1850 + 43 + 312);
     expect(p.byDay[30]).toBe(2405);
+  });
+});
+
+describe("raty", () => {
+  // kosiarka: 10 rat po 150 zł, 8 spłaconych, 9. rata 5 grudnia
+  const mower = rec({ id: 9, name: "Kosiarka", amount: 150, start_date: "2026-12-05", installments_total: 10, installments_paid_before: 8 });
+
+  it("harmonogram kończy się po ostatniej racie", () => {
+    expect(dueDates(mower, "2026-01-01", "2027-12-31")).toEqual(["2026-12-05", "2027-01-05"]);
+    expect(lastDue(mower)).toBe("2027-01-05");
+    expect(nextDue(mower, "2027-01-06")).toBeNull();
+    expect(upcoming([mower], "2027-01-06", "2027-03-01")).toEqual([]);
+  });
+
+  it("numer raty w terminie", () => {
+    expect(installmentNo(mower, "2026-12-05")).toBe(9);
+    expect(installmentNo(mower, "2027-01-05")).toBe(10);
+    expect(installmentNo(mower, "2027-02-05")).toBeNull();
+    expect(installmentNo(rec({}), "2026-12-15")).toBeNull();
+  });
+
+  it("postęp: zatwierdzone raty się doliczają, czekające nie", () => {
+    const t9 = tx({ recurring_id: 9, recurring_due: "2026-12-05", amount: 150 });
+    const t10 = tx({ recurring_id: 9, recurring_due: "2027-01-05", amount: 150, status: "pending" });
+    expect(installmentStatus(mower, [])).toMatchObject({ total: 10, paid: 8, pending: 0, remaining: 2, remainingAmount: 300, done: false });
+    expect(installmentStatus(mower, [t9, t10])).toMatchObject({ paid: 9, pending: 1, remaining: 1, remainingAmount: 150 });
+    expect(installmentStatus(mower, [t9, { ...t10, status: "confirmed" }])).toMatchObject({ paid: 10, remaining: 0, done: true });
+    expect(installmentStatus(rec({}), [])).toBeNull();
+  });
+
+  it("po ostatniej racie nic nie trafia do sprawdzenia ani do planu", () => {
+    expect(missingDues([mower], [], new Set(), "2027-06-30").map((d) => d.due)).toEqual(["2026-12-05", "2027-01-05"]);
+    expect(plannedCumulative([mower], "2027-02").total).toBe(0);
+    expect(plannedCumulative([mower], "2027-01").total).toBe(150);
+  });
+
+  it("wszystko spłacone od razu → żadnych terminów", () => {
+    const paid = { ...mower, installments_paid_before: 10 };
+    expect(dueDates(paid, "2026-01-01", "2030-01-01")).toEqual([]);
+    expect(lastDue(paid)).toBeNull();
+  });
+
+  it("poprawka „spłacono X”: start od następnego terminu po dziś", () => {
+    const loan = rec({ id: 10, amount: 220.7, start_date: "2026-01-03", installments_total: 24, installments_paid_before: 0 });
+    expect(resetInstallments(loan, 11, "2026-11-23")).toEqual({ start_date: "2026-12-03", installments_paid_before: 11 });
+    expect(resetInstallments(loan, 99, "2026-11-23").installments_paid_before).toBe(24);
+    const after = { ...loan, ...resetInstallments(loan, 11, "2026-11-23") };
+    expect(lastDue(after)).toBe("2027-12-03"); // 13 rat od grudnia 2026
+    // raty zatwierdzone przed nowym startem nie liczą się drugi raz
+    expect(installmentStatus(after, [tx({ recurring_id: 10, recurring_due: "2026-11-03" })])?.paid).toBe(11);
   });
 });

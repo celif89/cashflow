@@ -61,6 +61,11 @@ export async function loadAll(): Promise<AppData> {
     optional(fetchAll<Recurring>("cf_recurring", [["start_date", true], ["id", true]])),
   ]);
   const rec = recurring.map((r) => ({ ...r, amount: Number(r.amount), category_id: num(r.category_id) }));
+  // raty (1.5.0): czy w tabeli są już kolumny – sprawdzamy tylko, gdy sama tabela istnieje
+  if (!missing.has("recurring")) {
+    const { error } = await supabase.from("cf_recurring").select("installments_total").limit(1);
+    if (error && missingMigration(error.message) === "installments") missing.add("installments");
+  }
   // stałe płatności, których termin minął – do zatwierdzenia
   if (rec.length && (await materializeDues(rec, transactions, new Set(refs.map((r) => r.ref))))) {
     transactions = await fetchAll<Transaction>("cf_transactions", [["day", false], ["id", false]]);

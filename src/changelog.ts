@@ -12,6 +12,16 @@ export const APP_VERSION: string = __APP_VERSION__;
 
 export const RELEASES: Release[] = [
   {
+    version: "1.5.0",
+    date: "2026-11-23",
+    title: "Raty",
+    changes: [
+      { kind: "new", text: "Stała płatność może być spłatą w ratach (kredyt, zakup na raty): podajesz liczbę rat i ile już spłacono, np. 8 z 10. Każda zatwierdzona rata podbija licznik, a po ostatniej płatność sama się kończy – nie pojawia się w kolejnych miesiącach, w planie na wykresie ani w najbliższych płatnościach." },
+      { kind: "new", text: "Na liście stałych płatności: „spłacono 8 z 10 rat”, kwota do spłaty, termin ostatniej raty i pasek postępu; po spłacie oznaczenie „spłacone”. Numer raty widać też w „Do sprawdzenia” i na Pulpicie." },
+      { kind: "improved", text: "Gdy licznik się nie zgadza (np. rata zapłacona poza aplikacją), wpisujesz w edycji, ile rat jest spłaconych – harmonogram przelicza się od następnej raty." },
+    ],
+  },
+  {
     version: "1.4.0",
     date: "2026-11-22",
     title: "Plan stałych płatności na przyszły miesiąc",

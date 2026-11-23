@@ -5,6 +5,7 @@ const REPO = "https://github.com/celif89/cashflow/blob/claude/gracious-lovelace-
 export const MIGRATIONS = {
   bank: { file: "20261120000000_bank_import.sql", version: "1.1.0", what: "import z banku" },
   recurring: { file: "20261122000000_recurring.sql", version: "1.2.0", what: "stałe płatności" },
+  installments: { file: "20261123000000_installments.sql", version: "1.5.0", what: "raty" },
 } as const;
 
 export type MigrationKey = keyof typeof MIGRATIONS;
@@ -15,6 +16,7 @@ const TABLE_TO_MIGRATION: Record<string, MigrationKey> = { cf_import_refs: "bank
 const COLUMN_TO_MIGRATION: Record<string, MigrationKey> = {
   status: "bank", bank_ref: "bank", bank_text: "bank", category_source: "bank",
   recurring_id: "recurring", recurring_due: "recurring",
+  installments_total: "installments", installments_paid_before: "installments",
 };
 
 /** Która migracja jest potrzebna, sądząc po błędzie Supabase (null = to inny błąd). */

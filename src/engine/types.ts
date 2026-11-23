@@ -76,4 +76,8 @@ export interface Recurring {
   start_date: string;
   end_date: string | null;
   active: boolean;
+  /** raty: wszystkich rat (null/undefined = bez końca) */
+  installments_total?: number | null;
+  /** raty spłacone przed terminem `start_date` (8 z 10 → `start_date` to termin 9. raty) */
+  installments_paid_before?: number;
 }

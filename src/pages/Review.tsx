@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { Badge, Card, cx, EmptyState, NumberInput, PageHeader, Segmented, useAction } from "../components/ui";
 import { type Match, matchExisting, ownTransferReason } from "../engine/bank";
 import { round2 } from "../engine/money";
-import { frequencyLabel, matchRecurring } from "../engine/recurring";
+import { frequencyLabel, installmentNo, matchRecurring } from "../engine/recurring";
 import type { NewTransaction, Recurring, Transaction } from "../engine/types";
 import { confirmPending, mergePending, mergeRecurring, skipPending } from "../lib/data";
 import { useData } from "../lib/DataContext";
@@ -82,6 +82,7 @@ function PendingRow({ t, match, recMatch, recurring, busy, run }: {
   const c = categoryId !== null ? categoryById.get(categoryId) : undefined;
   const isRec = !!t.recurring_id;
   const variable = !!recurring?.variable_amount;
+  const rateNo = recurring && t.recurring_due ? installmentNo(recurring, t.recurring_due) : null;
   const own = isRec ? null : ownTransferReason(t.bank_text ?? "");
   const warn = !!(match || recMatch || own);
   const patch: Partial<NewTransaction> = {
@@ -109,7 +110,9 @@ function PendingRow({ t, match, recMatch, recurring, busy, run }: {
             {!isRec && t.category_source === "ai" && categoryId === t.category_id && <Badge tone="brand"><Sparkles className="size-3" /> podpowiedź</Badge>}
           </div>
           {isRec
-            ? <p className="mt-0.5 text-sm font-medium">{recurring?.name ?? t.merchant}<span className="ml-1.5 text-xs font-normal text-slate-500 dark:text-slate-400">{recurring ? frequencyLabel(recurring) : ""}</span></p>
+            ? <p className="mt-0.5 text-sm font-medium">{recurring?.name ?? t.merchant}
+                {rateNo && <span className="ml-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300">rata {rateNo} z {recurring!.installments_total}</span>}
+                <span className="ml-1.5 text-xs font-normal text-slate-500 dark:text-slate-400">{recurring ? frequencyLabel(recurring) : ""}</span></p>
             : <p className="mt-0.5 line-clamp-2 text-xs text-slate-500 dark:text-slate-400" title={t.bank_text ?? ""}>{t.bank_text}</p>}
         </div>
         {!isRec && <div className={cx("shrink-0 text-base font-semibold tnum", t.kind === "income" && "text-emerald-600 dark:text-emerald-400")}>{signedMoney(t.amount, t.kind)}</div>}

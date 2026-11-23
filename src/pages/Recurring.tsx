@@ -1,9 +1,12 @@
-import { CalendarClock, Pause, Plus, Sparkles, Trash2 } from "lucide-react";
+import { CalendarClock, Check, Pause, Plus, Sparkles, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge, Card, confirmAction, cx, EmptyState, Field, Modal, NumberInput, PageHeader, Segmented, useAction } from "../components/ui";
 import { addMonths, daysInMonth, today } from "../engine/dates";
 import { round2 } from "../engine/money";
-import { dueDates, FREQUENCIES, frequencyLabel, monthlyCost, nextDue, type RecurringSuggestion, suggestRecurring } from "../engine/recurring";
+import {
+  dueDates, FREQUENCIES, frequencyLabel, type InstallmentStatus, installmentStatus, lastDue, monthlyCost, nextDue, ratesFromStart,
+  type RecurringSuggestion, resetInstallments, suggestRecurring,
+} from "../engine/recurring";
 import type { Kind, Recurring } from "../engine/types";
 import { deleteRecurring, insertRecurring, type RecurringInput, updateRecurring } from "../lib/data";
 import { useData } from "../lib/DataContext";
@@ -27,9 +30,13 @@ export function RecurringPage() {
   const notReady = data!.missing.includes("recurring");
   const now = today();
   const suggestions = useMemo(() => suggestRecurring(data!.transactions, list, now).slice(0, 6), [data, list, now]);
-  const active = list.filter((r) => r.active && (!r.end_date || r.end_date >= now));
+  // trwające: aktywne i z kolejnym terminem (spłacone raty i zakończone już się nie liczą)
+  const running = (r: Recurring) => r.active && nextDue(r, now) !== null;
+  const active = list.filter(running);
   const perMonth = (k: Kind) => active.filter((r) => r.kind === k).reduce((a, r) => a + monthlyCost(r), 0);
-  const sorted = [...list].sort((a, b) => Number(b.active) - Number(a.active) || (nextDue(a, now) ?? "9").localeCompare(nextDue(b, now) ?? "9"));
+  const sorted = [...list].sort((a, b) => Number(running(b)) - Number(running(a)) || (nextDue(a, now) ?? "9").localeCompare(nextDue(b, now) ?? "9"));
+  const allTx = useMemo(() => [...data!.transactions, ...data!.pending], [data]);
+  const canInstallments = !data!.missing.includes("installments");
 
   const blank = (): RecurringInput => ({
     name: "", kind: "expense", amount: 0, variable_amount: false, category_id: null, merchant: null,
@@ -88,9 +95,10 @@ export function RecurringPage() {
                 {sorted.map((r) => {
                   const c = r.category_id !== null ? categoryById.get(r.category_id) : undefined;
                   const next = r.active ? nextDue(r, now) : null;
+                  const st = installmentStatus(r, allTx);
                   return (
                     <li key={r.id}>
-                      <button className={cx("flex w-full items-center gap-3 rounded-2xl px-2 py-2.5 text-left hover:bg-slate-900/[0.03] dark:hover:bg-white/[0.03]", !r.active && "opacity-60")}
+                      <button className={cx("flex w-full items-center gap-3 rounded-2xl px-2 py-2.5 text-left hover:bg-slate-900/[0.03] dark:hover:bg-white/[0.03]", (!r.active || st?.done) && "opacity-60")}
                         onClick={() => setEdit(r)}>
                         <CategoryIcon icon={c?.icon} color={c?.color} />
                         <div className="min-w-0 flex-1">
@@ -98,10 +106,13 @@ export function RecurringPage() {
                             {r.name}
                             {!r.active && <Badge><Pause className="size-3" /> wstrzymana</Badge>}
                             {r.variable_amount && <Badge tone="amber">kwota zmienna</Badge>}
+                            {st?.done && <Badge tone="green"><Check className="size-3" /> spłacone</Badge>}
                           </div>
-                          <div className="truncate text-xs text-slate-500 dark:text-slate-400">
-                            {frequencyLabel(r)}{next ? ` · następna ${dayLabel(next)}` : r.active ? " · zakończona" : ""}
-                          </div>
+                          {st ? <InstallmentLine st={st} next={next} /> : (
+                            <div className="truncate text-xs text-slate-500 dark:text-slate-400">
+                              {frequencyLabel(r)}{next ? ` · następna ${dayLabel(next)}` : r.active ? " · zakończona" : ""}
+                            </div>
+                          )}
                         </div>
                         <div className={cx("shrink-0 text-sm font-semibold tnum", r.kind === "income" && "text-emerald-600 dark:text-emerald-400")}>
                           {r.variable_amount ? "ok. " : ""}{r.kind === "income" ? "+" : "−"}{money(r.amount)}
@@ -115,7 +126,8 @@ export function RecurringPage() {
       </Card>
 
       {edit && (
-        <RecurringModal value={edit} busy={busy} onClose={() => setEdit(null)}
+        <RecurringModal value={edit} busy={busy} onClose={() => setEdit(null)} canInstallments={canInstallments}
+          status={"id" in edit ? installmentStatus(edit, allTx) : null}
           onSave={async (input) => {
             const ok = await run(() => ("id" in edit ? updateRecurring(edit.id, input) : insertRecurring(input)), "Zapisano stałą płatność");
             if (ok) setEdit(null);
@@ -130,8 +142,27 @@ export function RecurringPage() {
   );
 }
 
-function RecurringModal({ value, busy, onClose, onSave, onDelete }: {
-  value: Recurring | RecurringInput; busy: boolean; onClose: () => void; onSave: (r: RecurringInput) => void; onDelete?: () => void;
+/** „spłacono 8 z 10 · zostało 300 zł · ostatnia 05.01.2027” + pasek postępu */
+function InstallmentLine({ st, next }: { st: InstallmentStatus; next: string | null }) {
+  return (
+    <div className="mt-0.5">
+      <div className="truncate text-xs text-slate-500 dark:text-slate-400">
+        {st.done
+          ? `spłacono wszystkie ${st.total} rat`
+          : <>spłacono <b className="text-slate-700 dark:text-slate-200">{st.paid} z {st.total}</b> rat · zostało {money(st.remainingAmount)}
+              {next ? ` · następna ${dayLabel(next)}` : ""}{st.last && st.last !== next ? ` · ostatnia ${dayLabel(st.last)}` : ""}
+              {st.pending ? ` · ${st.pending} czeka na zatwierdzenie` : ""}</>}
+      </div>
+      <div className="mt-1 h-1.5 max-w-xs rounded-full bg-slate-100 dark:bg-white/5">
+        <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.max(3, (st.paid / st.total) * 100)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function RecurringModal({ value, status, canInstallments, busy, onClose, onSave, onDelete }: {
+  value: Recurring | RecurringInput; status: InstallmentStatus | null; canInstallments: boolean; busy: boolean;
+  onClose: () => void; onSave: (r: RecurringInput) => void; onDelete?: () => void;
 }) {
   const { activeCategories, categoryById } = useData();
   const [v, setV] = useState<RecurringInput>(() => {
@@ -139,14 +170,37 @@ function RecurringModal({ value, busy, onClose, onSave, onDelete }: {
     return rest;
   });
   const set = (p: Partial<RecurringInput>) => setV((x) => ({ ...x, ...p }));
+  // raty: liczba wszystkich i ile już spłacono (przy edycji – stan obecny, z zatwierdzonymi ratami)
+  const [rates, setRates] = useState(!!value.installments_total);
+  const [total, setTotal] = useState<number | null>(value.installments_total ?? null);
+  const [paid, setPaid] = useState<number | null>(status ? status.paid : value.installments_paid_before ?? 0);
   const cats = activeCategories(v.kind);
   const current = v.category_id !== null ? categoryById.get(v.category_id) : undefined;
   const choices = current && !cats.includes(current) ? [...cats, current] : cats;
   const now = today();
   const isNew = !("id" in value);
   // nowa pozycja z datą w przeszłości: zaległe terminy trafią do sprawdzenia
-  const past = isNew && v.start_date < now ? dueDates(v, v.start_date, now).slice(-12).length : 0;
-  const valid = v.name.trim() && v.amount > 0 && /^\d{4}-\d{2}-\d{2}$/.test(v.start_date) && (!v.end_date || v.end_date >= v.start_date);
+  const past = isNew && v.start_date < now ? dueDates({ ...v, installments_total: rates ? total : null, installments_paid_before: paid ?? 0 }, v.start_date, now).slice(-12).length : 0;
+  const ratesOk = !rates || (canInstallments && total !== null && total >= 1 && paid !== null && paid >= 0 && paid <= total);
+  const valid = v.name.trim() && v.amount > 0 && /^\d{4}-\d{2}-\d{2}$/.test(v.start_date) && (!v.end_date || v.end_date >= v.start_date) && ratesOk;
+
+  /** harmonogram po zapisie (do podglądu i do zapisu) */
+  function withRates(): RecurringInput {
+    const base: RecurringInput = { ...v, name: v.name.trim(), merchant: v.merchant?.trim() || null, amount: round2(v.amount) };
+    if (!canInstallments) {
+      // kolumn jeszcze nie ma w bazie – nie wysyłamy ich wcale
+      const { installments_total: _t, installments_paid_before: _p, ...rest } = base;
+      return rest;
+    }
+    if (!rates || total === null) return { ...base, installments_total: null, installments_paid_before: 0 };
+    const p = Math.min(paid ?? 0, total);
+    // edycja ze zmienioną liczbą spłaconych rat → harmonogram od następnego terminu
+    if (status && p !== status.paid) return { ...base, end_date: null, installments_total: total, ...resetInstallments({ ...(value as Recurring), ...base, installments_total: total }, p, now) };
+    return { ...base, end_date: null, installments_total: total, installments_paid_before: status ? (value.installments_paid_before ?? 0) : p };
+  }
+  const preview = withRates();
+  // ile rat zostało: wszystkie − spłacone (te, które wpisałeś, razem z zatwierdzonymi w aplikacji)
+  const left = rates && total !== null && paid !== null ? Math.max(0, total - Math.min(paid, total)) : ratesFromStart(preview);
 
   return (
     <Modal open onClose={onClose} title={isNew ? "Nowa stała płatność" : "Stała płatność"}
@@ -154,7 +208,7 @@ function RecurringModal({ value, busy, onClose, onSave, onDelete }: {
         {onDelete && <button className="btn btn-danger mr-auto" onClick={onDelete}><Trash2 className="size-4" /> Usuń</button>}
         <button className="btn btn-secondary" onClick={onClose}>Anuluj</button>
         <button className="btn btn-primary" disabled={!valid || busy}
-          onClick={() => onSave({ ...v, name: v.name.trim(), merchant: v.merchant?.trim() || null, amount: round2(v.amount) })}>Zapisz</button>
+          onClick={() => onSave(withRates())}>Zapisz</button>
       </>}>
       <div className="space-y-4">
         <Segmented value={v.kind} onChange={(k) => set({ kind: k, category_id: null })}
@@ -180,23 +234,58 @@ function RecurringModal({ value, busy, onClose, onSave, onDelete }: {
             <input className="input" value={v.merchant ?? ""} placeholder={v.name || "jak nazwa"} onChange={(e) => set({ merchant: e.target.value })} />
           </Field>
         </div>
-        <div className="grid gap-4 sm:grid-cols-3">
+        {v.kind === "expense" && (
+          <div className="rounded-2xl bg-slate-50 p-3 dark:bg-white/[0.03]">
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-0.5 size-4 accent-brand-600" checked={rates} onChange={(e) => setRates(e.target.checked)} />
+              <span>Spłata w ratach (kredyt, zakup na raty) – po ostatniej racie płatność sama się skończy</span>
+            </label>
+            {rates && !canInstallments && <div className="mt-3"><MigrationNotice k="installments" /></div>}
+            {rates && canInstallments && (
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:max-w-sm">
+                <Field label="Liczba rat">
+                  <input className="input" type="number" inputMode="numeric" min={1} max={600} value={total ?? ""} placeholder="np. 10"
+                    onChange={(e) => setTotal(e.target.value === "" ? null : Math.max(1, Math.round(Number(e.target.value))))} />
+                </Field>
+                <Field label={status ? "Spłacono rat" : "Już spłacono"}>
+                  <input className="input" type="number" inputMode="numeric" min={0} max={total ?? 600} value={paid ?? ""} placeholder="0"
+                    onChange={(e) => setPaid(e.target.value === "" ? null : Math.max(0, Math.round(Number(e.target.value))))} />
+                </Field>
+              </div>
+            )}
+            {rates && canInstallments && total !== null && paid !== null && paid > total && (
+              <p className="mt-2 text-xs text-red-600 dark:text-red-400">Spłaconych rat nie może być więcej niż wszystkich.</p>
+            )}
+          </div>
+        )}
+        <div className={cx("grid gap-4", rates ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
           <Field label="Jak często">
             <select className="input" value={v.every_months} onChange={(e) => set({ every_months: Number(e.target.value) })}>
               {FREQUENCIES.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
             </select>
           </Field>
-          <Field label={isNew ? "Najbliższa płatność" : "Pierwsza płatność"}>
-            <input className="input" type="date" value={v.start_date} onChange={(e) => set({ start_date: e.target.value })} />
+          <Field label={rates ? `Termin ${(preview.installments_paid_before ?? paid ?? 0) + 1}. raty` : isNew ? "Najbliższa płatność" : "Pierwsza płatność"}>
+            <input className="input" type="date" value={rates && status && paid !== status.paid ? preview.start_date : v.start_date}
+              disabled={!!(rates && status && paid !== status.paid)} onChange={(e) => set({ start_date: e.target.value })} />
           </Field>
-          <Field label="Do kiedy" hint="Puste = bez końca">
-            <input className="input" type="date" value={v.end_date ?? ""} min={v.start_date} onChange={(e) => set({ end_date: e.target.value || null })} />
-          </Field>
+          {!rates && (
+            <Field label="Do kiedy" hint="Puste = bez końca">
+              <input className="input" type="date" value={v.end_date ?? ""} min={v.start_date} onChange={(e) => set({ end_date: e.target.value || null })} />
+            </Field>
+          )}
         </div>
+        {rates && canInstallments && total !== null && paid !== null && paid <= total && (
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            {left === 0
+              ? "Wszystkie raty spłacone – płatność nie będzie się już pojawiać."
+              : <>Zostało {left} {left === 1 ? "rata" : left % 10 >= 2 && left % 10 <= 4 && (left % 100 < 12 || left % 100 > 14) ? "raty" : "rat"} ({money(left * round2(v.amount || 0))}),
+                  ostatnia {lastDue(preview) ? dayLabel(lastDue(preview)!) : "–"}. Potem płatność sama się wygasi.</>}
+          </p>
+        )}
         {/^\d{4}-\d{2}-\d{2}$/.test(v.start_date) && (
           <p className="text-sm text-slate-600 dark:text-slate-300">
             <CalendarClock className="mr-1 inline size-4 align-[-3px]" />
-            {frequencyLabel(v)}. Kolejne terminy: {dueDates(v, now, "2100-12-31", 60).slice(0, 3).map(dayLabel).join(", ") || "brak"}.
+            {frequencyLabel(v)}. Kolejne terminy: {dueDates(preview, now, "2100-12-31", 60).slice(0, 3).map(dayLabel).join(", ") || "brak"}.
           </p>
         )}
         {past > 0 && (

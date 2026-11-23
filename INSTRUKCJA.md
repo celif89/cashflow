@@ -28,8 +28,12 @@ Ten sam plik zakłada też prywatny „kubełek” `cf-receipts` na zdjęcia par
 6. I trzeci plik (stałe płatności, wersja 1.2.0):
    https://github.com/celif89/cashflow/blob/claude/gracious-lovelace-4mtl7k/supabase/migrations/20261122000000_recurring.sql
 
-> **Aktualizujesz?** Uruchom tylko pliki, których jeszcze nie uruchamiałeś: z wersji 1.0.0 –
-> drugi i trzeci, z wersji 1.1.0 – tylko trzeci. Dotychczasowe dane zostają.
+7. I czwarty plik (raty, wersja 1.5.0):
+   https://github.com/celif89/cashflow/blob/claude/gracious-lovelace-4mtl7k/supabase/migrations/20261123000000_installments.sql
+
+> **Aktualizujesz?** Uruchom tylko pliki, których jeszcze nie uruchamiałeś, po kolei (każdy kolejny
+> korzysta z poprzednich). Dotychczasowe dane zostają. Gdy któregoś brakuje, aplikacja pokaże, który
+> plik uruchomić.
 
 ## Krok 2: Klucz do skanowania paragonów
 
@@ -127,6 +131,10 @@ miesiąca obowiązuje dalej (31. w krótszym miesiącu = ostatni dzień).
   (**Wykryte w historii**) i proponuje dodanie ich jednym kliknięciem.
 - Jeśli płatność przyszła też z wyciągu (np. Netflix kartą), aplikacja zaproponuje **Połącz** –
   liczy się raz.
+- **Raty** (kredyt, zakup na raty): zaznacz **Spłata w ratach**, wpisz liczbę rat i ile już spłacono
+  (np. 10 i 8), a jako datę – termin najbliższej raty. Każda zatwierdzona rata podbija licznik
+  („spłacono 9 z 10”), a po ostatniej płatność sama się kończy. Jeśli licznik się rozjedzie, popraw
+  w edycji „Spłacono rat” – harmonogram przeliczy się od następnej raty.
 - Na Pulpicie widać stałe płatności z najbliższych 30 dni i ile zostało do końca miesiąca, a na wykresie
   **Wydatki narastająco** kropkowana linia pokazuje, jak w przyszłym miesiącu będą narastać same stałe
   płatności (bez codziennych zakupów).

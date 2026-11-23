@@ -1,5 +1,13 @@
 # Historia zmian
 
+## 1.5.0 – 2026-11-23
+
+Raty.
+
+- Nowe: stała płatność jako spłata w ratach – liczba rat i ile już spłacono (np. 8 z 10); każda zatwierdzona rata podbija licznik, a po ostatniej płatność sama się kończy (nie pojawia się w kolejnych miesiącach, w planie ani w najbliższych płatnościach).
+- Nowe: na liście stałych płatności postęp spłaty, kwota do spłaty, termin ostatniej raty i oznaczenie „spłacone”; numer raty w „Do sprawdzenia” i na Pulpicie.
+- Ulepszone: poprawka liczby spłaconych rat w edycji przelicza harmonogram od następnej raty.
+
 ## 1.4.0 – 2026-11-22
 
 Plan stałych płatności na przyszły miesiąc.
