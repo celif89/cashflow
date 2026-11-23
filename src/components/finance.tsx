@@ -8,14 +8,15 @@ import { type MigrationKey, MIGRATIONS, migrationUrl } from "../lib/migrations";
 import { cx, Notice } from "./ui";
 
 export function MonthPicker({ month, onChange }: { month: string; onChange: (m: string) => void }) {
-  const isNow = month === thisMonth();
+  // do przodu najwyżej rok – widać zaplanowane stałe płatności i wpisy z datą w przyszłości
+  const last = addMonths(thisMonth(), 12);
   return (
     <div className="inline-flex items-center gap-1 rounded-2xl bg-white/80 p-1 shadow-xs ring-1 ring-slate-200 dark:bg-white/5 dark:ring-white/10">
       <button className="btn btn-ghost btn-icon" onClick={() => onChange(addMonths(month, -1))} aria-label="Poprzedni miesiąc"><ChevronLeft className="size-4" /></button>
       <button className="min-w-36 px-2 text-center text-sm font-semibold capitalize" onClick={() => onChange(thisMonth())} title="Bieżący miesiąc">
         {monthName(month)}
       </button>
-      <button className="btn btn-ghost btn-icon" disabled={isNow} onClick={() => onChange(addMonths(month, 1))} aria-label="Następny miesiąc"><ChevronRight className="size-4" /></button>
+      <button className="btn btn-ghost btn-icon" disabled={month >= last} onClick={() => onChange(addMonths(month, 1))} aria-label="Następny miesiąc"><ChevronRight className="size-4" /></button>
     </div>
   );
 }

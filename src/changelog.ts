@@ -12,6 +12,17 @@ export const APP_VERSION: string = __APP_VERSION__;
 
 export const RELEASES: Release[] = [
   {
+    version: "1.5.2",
+    date: "2026-11-23",
+    title: "Przyszłe miesiące i porządki w ratach",
+    changes: [
+      { kind: "new", text: "Pulpit i Transakcje pozwalają przejść do przodu (do roku). W przyszłym miesiącu widać zaplanowane stałe płatności z numerami rat, ich sumę i przebieg na wykresie, a także wpisy z datą w przyszłości." },
+      { kind: "fixed", text: "„Powtarzaj” przy wydatku z datą w przyszłości nie zapisuje już wydatku ani „spłaconej” raty – tworzy tylko stałą płatność, a pierwsza pojawi się do sprawdzenia w swoim terminie." },
+      { kind: "fixed", text: "Licznik „spłacono” liczy tylko raty z terminem do dziś; wpis zapisany z góry jest pokazany osobno („zapisana z góry”)." },
+      { kind: "new", text: "W oknie stałej płatności lista jej płatności (rata, termin, czy czeka, czy jest spoza harmonogramu) z możliwością usunięcia błędnej." },
+    ],
+  },
+  {
     version: "1.5.1",
     date: "2026-11-23",
     title: "Poprawki rat",

@@ -1,5 +1,14 @@
 # Historia zmian
 
+## 1.5.2 – 2026-11-23
+
+Przyszłe miesiące i porządki w ratach.
+
+- Nowe: Pulpit i Transakcje pozwalają przejść do przodu (do roku); w przyszłym miesiącu widać zaplanowane stałe płatności z numerami rat, ich sumę i przebieg na wykresie oraz wpisy z datą w przyszłości.
+- Poprawione: „Powtarzaj” przy wydatku z datą w przyszłości tworzy tylko stałą płatność – bez wydatku i bez „spłaconej” raty.
+- Poprawione: licznik „spłacono” liczy tylko raty z terminem do dziś; wpis zapisany z góry jest pokazany osobno.
+- Nowe: w oknie stałej płatności lista jej płatności z możliwością usunięcia błędnej.
+
 ## 1.5.1 – 2026-11-23
 
 Poprawki rat.

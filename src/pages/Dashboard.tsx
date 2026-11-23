@@ -28,6 +28,7 @@ export function Dashboard() {
   const categories = data!.categories;
   const prev = addMonths(month, -1);
   const isNow = month === thisMonth();
+  const isFuture = month > thisMonth();
   const upto = isNow ? Number(today().slice(8, 10)) : daysInMonth(month);
 
   const m = useMemo(() => {
@@ -53,10 +54,13 @@ export function Dashboard() {
     const until = new Date(parseDay(now)); until.setDate(until.getDate() + 30);
     return upcoming(data!.recurring, now, toDay(until));
   }, [data, now]);
-  // plan na przyszły miesiąc ze stałych płatności – trzecia linia na wykresie (tylko przy bieżącym miesiącu)
+  // plan ze stałych płatności: przy bieżącym miesiącu – na przyszły, przy przyszłym – na ten wybrany
   const next = addMonths(thisMonth(), 1);
-  const planned = useMemo(() => (isNow ? plannedCumulative(data!.recurring, next) : null), [data, isNow, next]);
+  const planMonth = isNow ? next : isFuture ? month : null;
+  const planned = useMemo(() => (planMonth ? plannedCumulative(data!.recurring, planMonth) : null), [data, planMonth]);
   const showPlan = !!planned && planned.total > 0;
+  // stałe płatności w wybranym przyszłym miesiącu (z numerami rat)
+  const monthDues = useMemo(() => (isFuture ? upcoming(data!.recurring, `${prev}-${daysInMonth(prev)}`, `${month}-${daysInMonth(month)}`) : []), [data, isFuture, month, prev]);
   const lineData = useMemo(() => {
     if (!showPlan) return m.line;
     const len = Math.max(m.line.length, planned!.byDay.length);
@@ -105,10 +109,20 @@ export function Dashboard() {
       <PageHeader eyebrow="Pulpit" title={<span className="capitalize">{monthName(month)}</span>}
         actions={<MonthPicker month={month} onChange={setMonth} />} />
       {pendingBanner}
+      {isFuture && (
+        <div className="mb-4">
+          <Notice tone="info" action={<button className="btn btn-secondary -my-1.5 py-1.5 text-xs" onClick={() => setMonth(thisMonth())}>Bieżący miesiąc</button>}>
+            To przyszły miesiąc: widać zaplanowane stałe płatności{m.cur.length ? " i wpisy z datą w przyszłości" : ""}.
+            Płatności trafią do „Do sprawdzenia” w dniu terminu.
+          </Notice>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Stat label="Wydatki" icon={<TrendingDown className="size-4" />} value={moneyRound(m.t.expense)}
-          hint={m.prevSameDay > 0
+          hint={isFuture
+            ? (m.cur.length ? txCount(m.cur.filter((x) => x.kind === "expense").length) + " z datą w przyszłości" : "miesiąc jeszcze się nie zaczął")
+            : m.prevSameDay > 0
             ? <span className={diff > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}>
                 {diff > 0 ? "▲" : "▼"} {moneyRound(Math.abs(diff))} {isNow ? "vs ten sam okres w poprz. miesiącu" : "vs poprzedni miesiąc"}
               </span>
@@ -118,7 +132,10 @@ export function Dashboard() {
         <Stat label="Saldo" icon={<Wallet className="size-4" />} value={`${m.t.balance < 0 ? "−" : ""}${moneyRound(Math.abs(m.t.balance))}`}
           tone={m.t.balance < 0 ? "warn" : "good"}
           hint={m.t.income > 0 ? `wydano ${percent(m.t.expense / m.t.income)} przychodów` : undefined} />
-        {m.fc !== null
+        {isFuture
+          ? <Stat label="Zaplanowane stałe płatności" icon={<CalendarClock className="size-4" />} value={moneyRound(planned?.total ?? 0)}
+              hint={planned?.count ? plural(planned.count, "płatność", "płatności", "płatności") : "brak w tym miesiącu"} />
+          : m.fc !== null
           ? <Stat label="Prognoza na koniec miesiąca" value={moneyRound(m.fc)} hint={`przy obecnym tempie · ${moneyRound(m.t.expense / upto)} dziennie`} />
           : <Stat label="Średnio dziennie" value={moneyRound(m.t.expense / Math.max(upto, 1))} hint={`poprzedni miesiąc: ${moneyRound(m.tp.expense)}`} />}
       </div>
@@ -126,17 +143,18 @@ export function Dashboard() {
       <div className="mt-4 grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3" title="Wydatki narastająco"
           subtitle={showPlan
-            ? `${monthName(month)} na tle ${monthName(prev)} · ${monthName(next)}: stałe płatności ${moneyRound(planned!.total)} (${plural(planned!.count, "płatność", "płatności", "płatności")})`
+            ? `${monthName(month)} na tle ${monthName(prev)} · ${monthName(planMonth!)}: stałe płatności ${moneyRound(planned!.total)} (${plural(planned!.count, "płatność", "płatności", "płatności")})`
             : `${monthName(month)} na tle ${monthName(prev)}`}>
           <Lines data={lineData} x="day" height={300} fmt={money} axisFmt={axisMoney} labelFmt={(d) => `${d}. dzień`}
             series={[
-              { key: "current", name: monthName(month), color: p.s1 },
+              // w przyszłym miesiącu linia „wydatków” tylko wtedy, gdy są wpisy z datą w przyszłości
+              ...(isFuture && m.cur.length === 0 ? [] : [{ key: "current", name: monthName(month), color: p.s1 }]),
               { key: "previous", name: monthName(prev), color: p.muted, dashed: true },
-              ...(showPlan ? [{ key: "planned", name: `${monthName(next)} – plan (stałe)`, color: p.s2, dashed: "2 4" }] : []),
+              ...(showPlan ? [{ key: "planned", name: `${monthName(planMonth!)} – plan (stałe)`, color: p.s2, dashed: "2 4" }] : []),
             ]} />
           {showPlan && (
             <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              Kropkowana linia: stałe płatności zaplanowane na {monthName(next)}, bez codziennych zakupów
+              Kropkowana linia: stałe płatności zaplanowane na {monthName(planMonth!)}, bez codziennych zakupów
               {planned!.variable ? "; rachunki o zmiennej kwocie liczone orientacyjnie" : ""}.
             </p>
           )}
@@ -172,15 +190,16 @@ export function Dashboard() {
         </Card>
 
         <div className="min-w-0 space-y-4 lg:col-span-2">
-        <Card title="Najbliższe stałe płatności" icon={<CalendarClock className="size-4" />}
-          subtitle={soon.length && leftThisMonth > 0 ? `do końca miesiąca jeszcze ${moneyRound(leftThisMonth)}` : "30 dni"}
+        <Card title={isFuture ? `Stałe płatności – ${monthName(month)}` : "Najbliższe stałe płatności"} icon={<CalendarClock className="size-4" />}
+          subtitle={isFuture ? (monthDues.length ? `razem ${moneyRound(monthDues.filter((u) => u.r.kind === "expense").reduce((a, u) => a + u.r.amount, 0))} wydatków` : undefined)
+            : soon.length && leftThisMonth > 0 ? `do końca miesiąca jeszcze ${moneyRound(leftThisMonth)}` : "30 dni"}
           actions={<Link to="/stale-platnosci" className="btn btn-ghost -my-1 text-xs">{data!.recurring.length ? "Zarządzaj" : "Dodaj"}</Link>}>
-          {soon.length === 0
+          {(isFuture ? monthDues : soon).length === 0
             ? <p className="text-sm text-slate-500 dark:text-slate-400">
-                {data!.recurring.length ? "W najbliższych 30 dniach nie ma stałych płatności." : "Dodaj abonamenty, rachunki i podatki – w dniu terminu pojawią się do zatwierdzenia, a tutaj zobaczysz, co jeszcze przed Tobą."}
+                {data!.recurring.length ? (isFuture ? "W tym miesiącu nie ma stałych płatności." : "W najbliższych 30 dniach nie ma stałych płatności.") : "Dodaj abonamenty, rachunki i podatki – w dniu terminu pojawią się do zatwierdzenia, a tutaj zobaczysz, co jeszcze przed Tobą."}
               </p>
             : <ul className="space-y-2">
-                {soon.slice(0, 6).map(({ r, due }) => {
+                {(isFuture ? monthDues : soon).slice(0, isFuture ? 20 : 6).map(({ r, due }) => {
                   const c = r.category_id !== null ? data!.categories.find((x) => x.id === r.category_id) : undefined;
                   return (
                     <li key={`${r.id}-${due}`} className="flex items-center gap-2.5 text-sm">
@@ -195,7 +214,7 @@ export function Dashboard() {
                     </li>
                   );
                 })}
-                {soon.length > 6 && <li className="text-xs text-slate-500">+ {soon.length - 6} kolejnych</li>}
+                {!isFuture && soon.length > 6 && <li className="text-xs text-slate-500">+ {soon.length - 6} kolejnych</li>}
               </ul>}
         </Card>
 

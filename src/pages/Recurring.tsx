@@ -4,7 +4,7 @@ import { Badge, Card, confirmAction, cx, EmptyState, Field, Modal, NumberInput, 
 import { addMonths, daysInMonth, today } from "../engine/dates";
 import { round2 } from "../engine/money";
 import {
-  dueDates, FREQUENCIES, frequencyLabel, type InstallmentStatus, installmentStatus, lastDue, monthlyCost, nextDue, ratesFromStart,
+  dueDates, FREQUENCIES, frequencyLabel, installmentNo, type InstallmentStatus, installmentStatus, isScheduled, lastDue, monthlyCost, nextDue, ratesFromStart,
   type RecurringSuggestion, resetInstallments, staleDues, suggestRecurring,
 } from "../engine/recurring";
 import type { Kind, Recurring, Transaction } from "../engine/types";
@@ -96,7 +96,7 @@ export function RecurringPage() {
                 {sorted.map((r) => {
                   const c = r.category_id !== null ? categoryById.get(r.category_id) : undefined;
                   const next = r.active ? nextDue(r, now) : null;
-                  const st = installmentStatus(r, allTx);
+                  const st = installmentStatus(r, allTx, now);
                   return (
                     <li key={r.id}>
                       <button className={cx("flex w-full items-center gap-3 rounded-2xl px-2 py-2.5 text-left hover:bg-slate-900/[0.03] dark:hover:bg-white/[0.03]", (!r.active || st?.done) && "opacity-60")}
@@ -129,6 +129,10 @@ export function RecurringPage() {
       {edit && (
         <RecurringModal value={edit} busy={busy} onClose={() => setEdit(null)} canInstallments={canInstallments}
           allTx={allTx}
+          onDeleteTx={(t) => {
+            if (!confirmAction(`Usunąć płatność z ${dayLabel(t.day)} (${money(t.amount)})? ${t.status === "pending" ? "Zniknie z „Do sprawdzenia”." : "Zniknie też z budżetu."}`)) return;
+            void run(() => deleteTransactions([t.id]), "Usunięto płatność");
+          }}
           onSave={async (input) => {
             const ok = await run(async () => {
               if (!("id" in edit)) return insertRecurring(input);
@@ -158,7 +162,8 @@ function InstallmentLine({ st, next }: { st: InstallmentStatus; next: string | n
           ? `spłacono wszystkie ${st.total} rat`
           : <>spłacono <b className="text-slate-700 dark:text-slate-200">{st.paid} z {st.total}</b> rat · zostało {money(st.remainingAmount)}
               {next ? ` · następna ${dayLabel(next)}` : ""}{st.last && st.last !== next ? ` · ostatnia ${dayLabel(st.last)}` : ""}
-              {st.pending ? ` · ${st.pending} czeka na zatwierdzenie` : ""}</>}
+              {st.pending ? ` · ${st.pending} czeka na zatwierdzenie` : ""}
+              {st.ahead ? ` · ${st.ahead} zapisana z góry` : ""}</>}
       </div>
       <div className="mt-1 h-1.5 max-w-xs rounded-full bg-slate-100 dark:bg-white/5">
         <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.max(3, (st.paid / st.total) * 100)}%` }} />
@@ -167,9 +172,9 @@ function InstallmentLine({ st, next }: { st: InstallmentStatus; next: string | n
   );
 }
 
-function RecurringModal({ value, allTx, canInstallments, busy, onClose, onSave, onDelete }: {
+function RecurringModal({ value, allTx, canInstallments, busy, onClose, onSave, onDelete, onDeleteTx }: {
   value: Recurring | RecurringInput; allTx: Transaction[]; canInstallments: boolean; busy: boolean;
-  onClose: () => void; onSave: (r: RecurringInput) => void; onDelete?: () => void;
+  onClose: () => void; onSave: (r: RecurringInput) => void; onDelete?: () => void; onDeleteTx?: (t: Transaction) => void;
 }) {
   const { activeCategories, categoryById } = useData();
   const [v, setV] = useState<RecurringInput>(() => {
@@ -189,7 +194,7 @@ function RecurringModal({ value, allTx, canInstallments, busy, onClose, onSave, 
   const [total, setTotal] = useState<number | null>(value.installments_total ?? null);
   // przy edycji: stan spłaty według ustawień z okna (data, liczba rat) – przelicza się, gdy je zmieniasz
   const live = !isNew && rates && total && hasDate
-    ? installmentStatus({ ...(value as Recurring), ...v, installments_total: total, installments_paid_before: value.installments_paid_before ?? 0 }, allTx)
+    ? installmentStatus({ ...(value as Recurring), ...v, installments_total: total, installments_paid_before: value.installments_paid_before ?? 0 }, allTx, now)
     : null;
   // „spłacono”: przy nowej – to, co wpiszesz; przy edycji – stan obecny, dopóki go sam nie zmienisz
   const [paidInput, setPaidInput] = useState<number | null | undefined>(isNew ? value.installments_paid_before ?? 0 : undefined);
@@ -317,6 +322,7 @@ function RecurringModal({ value, allTx, canInstallments, busy, onClose, onSave, 
             Data jest w przeszłości: {past === 1 ? "1 zaległa płatność trafi" : `${past} zaległe płatności trafią`} do sprawdzenia. Jeśli są już w budżecie (np. z wyciągu), aplikacja zaproponuje połączenie.
           </p>
         )}
+        {!isNew && <PaymentsList r={{ ...(value as Recurring), ...preview }} allTx={allTx} busy={busy} onDeleteTx={onDeleteTx} />}
         {!isNew && (
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" className="size-4 accent-brand-600" checked={!v.active} onChange={(e) => set({ active: !e.target.checked })} />
@@ -325,5 +331,39 @@ function RecurringModal({ value, allTx, canInstallments, busy, onClose, onSave, 
         )}
       </div>
     </Modal>
+  );
+}
+
+/** Płatności powiązane ze stałą pozycją: która liczy się jako rata, która czeka, która jest spoza harmonogramu. */
+function PaymentsList({ r, allTx, busy, onDeleteTx }: { r: Recurring; allTx: Transaction[]; busy: boolean; onDeleteTx?: (t: Transaction) => void }) {
+  const list = allTx.filter((t) => t.recurring_id === r.id).sort((a, b) => (b.recurring_due ?? b.day).localeCompare(a.recurring_due ?? a.day));
+  if (!list.length) return <p className="text-xs text-slate-500 dark:text-slate-400">Płatności z tej pozycji: jeszcze żadnej.</p>;
+  return (
+    <div>
+      <span className="label">Płatności z tej pozycji</span>
+      <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 text-sm dark:divide-white/5 dark:border-white/10">
+        {list.slice(0, 24).map((t) => {
+          const due = t.recurring_due ?? t.day;
+          const inPlan = isScheduled(r, due);
+          const no = inPlan ? installmentNo(r, due) : null;
+          return (
+            <li key={t.id} className="flex items-center gap-2 px-3 py-2">
+              <span className="w-20 shrink-0 text-xs text-slate-500 tnum dark:text-slate-400">{dayLabel(due)}</span>
+              <span className="min-w-0 flex-1 truncate text-xs">
+                {no ? `rata ${no} z ${r.installments_total}` : inPlan ? "płatność" : <span className="font-medium text-amber-700 dark:text-amber-300">spoza harmonogramu – nie liczy się jako rata</span>}
+                {t.status === "pending" && <span className="ml-1 text-amber-700 dark:text-amber-300">· czeka na zatwierdzenie</span>}
+                {t.status !== "pending" && due > today() && <span className="ml-1 text-amber-700 dark:text-amber-300">· zapisana z góry (termin jeszcze nie nadszedł)</span>}
+                {t.day !== due && <span className="ml-1 text-slate-400">· data wpisu {dayLabel(t.day)}</span>}
+              </span>
+              <span className="shrink-0 font-semibold tnum">{money(t.amount)}</span>
+              {onDeleteTx && (
+                <button type="button" className="btn btn-ghost btn-icon size-7 text-slate-400" disabled={busy} aria-label="Usuń płatność" title="Usuń płatność"
+                  onClick={() => onDeleteTx(t)}><Trash2 className="size-3.5" /></button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

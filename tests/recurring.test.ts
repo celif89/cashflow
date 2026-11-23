@@ -203,3 +203,12 @@ describe("zmiana harmonogramu", () => {
     expect(installmentStatus(loan, [confirmedOrphan])).toMatchObject({ paid: 0, remaining: 24 });
   });
 });
+
+describe("raty zapisane z góry", () => {
+  it("wpis w terminie raty, który jeszcze nie nadszedł, nie liczy się jako spłacony", () => {
+    const loan = rec({ id: 12, amount: 300, start_date: "2026-12-21", installments_total: 24, installments_paid_before: 0 });
+    const early = tx({ recurring_id: 12, recurring_due: "2026-12-21", day: "2026-12-21", amount: 300 });
+    expect(installmentStatus(loan, [early], "2026-11-23")).toMatchObject({ paid: 0, ahead: 1, remaining: 24 });
+    expect(installmentStatus(loan, [early], "2026-12-21")).toMatchObject({ paid: 1, ahead: 0, remaining: 23 });
+  });
+});

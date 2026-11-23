@@ -51,6 +51,10 @@ export function TransactionEditor() {
   const dup = findDuplicate({ day, amount, kind, merchant: merchant.trim() || null, category_id: categoryId, excludeId: existing?.id },
     [...data.transactions, ...data.pending], data.recurring);
 
+  const future = /^\d{4}-\d{2}-\d{2}$/.test(day) && day > today();
+  // nowy wpis z datą w przyszłości i „powtarzaj” → zapisujemy tylko stałą płatność (bez wydatku i bez „spłaconej” raty)
+  const onlyPlan = !!repeat && future && !existing;
+
   async function save() {
     if (!valid) return;
     const row: NewTransaction = {
@@ -60,17 +64,19 @@ export function TransactionEditor() {
     const ok = await run(async () => {
       let id = existing?.id;
       if (existing) await updateTransaction(existing.id, row);
-      else id = (await insertTransactions([row]))[0];
+      // data w przyszłości + „powtarzaj”: bez wydatku – pierwsza płatność pojawi się do sprawdzenia w swoim terminie
+      else if (!onlyPlan) id = (await insertTransactions([row]))[0];
       // „powtarzaj”: ta transakcja jest pierwszą płatnością nowej stałej pozycji
-      if (repeat && id) {
+      if (repeat && (id || onlyPlan)) {
         const recId = await insertRecurring({
           name: row.merchant || (categoryId !== null ? categoryById.get(categoryId)?.name : null) || (kind === "expense" ? "Stały wydatek" : "Stały przychód"),
           kind, amount: row.amount, variable_amount: false, category_id: categoryId, merchant: row.merchant,
           every_months: repeat, start_date: day, end_date: null, active: true,
         });
-        await linkFirstPayment(id, recId, day);
+        if (id && !onlyPlan) await linkFirstPayment(id, recId, day);
       }
-    }, repeat ? "Zapisano – kolejne płatności pojawią się do zatwierdzenia" : existing ? "Zapisano zmiany" : kind === "expense" ? "Dodano wydatek" : "Dodano przychód");
+    }, onlyPlan ? `Zapisano stałą płatność – pierwsza pojawi się do sprawdzenia ${dayLabel(day)}`
+      : repeat ? "Zapisano – kolejne płatności pojawią się do zatwierdzenia" : existing ? "Zapisano zmiany" : kind === "expense" ? "Dodano wydatek" : "Dodano przychód");
     if (ok) closeEditor();
   }
 
@@ -89,7 +95,7 @@ export function TransactionEditor() {
         {existing && <button className="btn btn-danger mr-auto" disabled={busy} onClick={remove}><Trash2 className="size-4" /> Usuń</button>}
         <button className="btn btn-secondary" onClick={closeEditor}>Anuluj</button>
         <button className="btn btn-primary min-w-28" disabled={!valid || busy} onClick={save}>
-          {busy ? "Zapisywanie…" : dup ? (existing ? "Zapisz mimo to" : "Dodaj mimo to") : "Zapisz"}
+          {busy ? "Zapisywanie…" : onlyPlan ? "Zapisz stałą płatność" : dup ? (existing ? "Zapisz mimo to" : "Dodaj mimo to") : "Zapisz"}
         </button>
       </>}>
       <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); void save(); }}>
@@ -132,6 +138,7 @@ export function TransactionEditor() {
                 </button>
               ))}
             </div>
+            {future && !repeat && <span className="mt-1 block text-xs text-amber-700 dark:text-amber-300">Data w przyszłości – wpis zobaczysz w miesiącu {monthName(day.slice(0, 7))} (Pulpit → strzałka w prawo).</span>}
           </Field>
           <Field label={kind === "expense" ? "Sklep / komu" : "Od kogo"}>
             <Combobox value={merchant} onChange={setMerchant} options={merchants} placeholder={kind === "expense" ? "np. Biedronka" : "np. pracodawca"} />
@@ -145,7 +152,11 @@ export function TransactionEditor() {
         </Field>
 
         {!existing?.recurring_id && !existing?.receipt_id && !data.missing.includes("recurring") && (
-          <Field label="Powtarzaj" hint={repeat ? `${frequencyLabel({ every_months: repeat, start_date: day })} – kolejne płatności pojawią się w „Do sprawdzenia”. Zmienisz to w Ustawieniach → Stałe płatności.` : undefined}>
+          <Field label="Powtarzaj" hint={repeat
+            ? onlyPlan
+              ? `${frequencyLabel({ every_months: repeat, start_date: day })}. Data jest w przyszłości, więc zapiszę tylko stałą płatność, bez wydatku – pierwsza pojawi się w „Do sprawdzenia” ${dayLabel(day)}. Raty ustawisz w Ustawieniach → Stałe płatności.`
+              : `${frequencyLabel({ every_months: repeat, start_date: day })} – ten wpis to pierwsza płatność, kolejne pojawią się w „Do sprawdzenia”. Zmienisz to w Ustawieniach → Stałe płatności.`
+            : undefined}>
             <select className="input" value={repeat} onChange={(e) => setRepeat(Number(e.target.value))}>
               <option value={0}>Nie – jednorazowo</option>
               {FREQUENCIES.map((f) => <option key={f.value} value={f.value}>{f.label[0].toUpperCase() + f.label.slice(1)}</option>)}

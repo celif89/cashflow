@@ -250,26 +250,29 @@ export interface InstallmentStatus {
   paid: number;
   /** raty czekające w „Do sprawdzenia” */
   pending: number;
+  /** raty zapisane z góry (termin jeszcze nie nadszedł) – nie liczą się jako spłacone */
+  ahead: number;
   remaining: number;
   remainingAmount: number;
   last: string | null;
   done: boolean;
 }
 
-/** Postęp spłaty: liczą się raty zatwierdzone w aplikacji (od `start_date`) plus spłacone wcześniej. */
-export function installmentStatus(r: Recurring, txs: Transaction[]): InstallmentStatus | null {
+/** Postęp spłaty: raty spłacone przed startem plus zatwierdzone w aplikacji z harmonogramu, z terminem do `today`. */
+export function installmentStatus(r: Recurring, txs: Transaction[], today = "9999-12-31"): InstallmentStatus | null {
   if (!r.installments_total) return null;
-  let confirmed = 0, pending = 0;
+  let confirmed = 0, pending = 0, ahead = 0;
   for (const t of txs) {
     // liczą się tylko raty z harmonogramu – płatność sprzed zmiany daty nie jest „spłaconą ratą”
     if (t.recurring_id !== r.id || !t.recurring_due || !isScheduled(r, t.recurring_due)) continue;
     if (t.status === "pending") pending++;
+    else if (t.recurring_due > today) ahead++;
     else confirmed++;
   }
   const total = r.installments_total;
   const paid = Math.min(total, (r.installments_paid_before ?? 0) + confirmed);
   const remaining = total - paid;
-  return { total, paid, pending, remaining, remainingAmount: (remaining * toGr(r.amount)) / 100, last: lastDue(r), done: remaining === 0 };
+  return { total, paid, pending, ahead, remaining, remainingAmount: (remaining * toGr(r.amount)) / 100, last: lastDue(r), done: remaining === 0 };
 }
 
 /**
