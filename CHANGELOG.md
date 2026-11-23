@@ -1,5 +1,12 @@
 # Historia zmian
 
+## 1.5.1 – 2026-11-23
+
+Poprawki rat.
+
+- Poprawione: kredyt z pierwszą ratą w przyszłym miesiącu nie dostaje już „spłaconej” raty z dzisiejszą datą – nowa stała płatność nie ma domyślnie dzisiejszej daty, a gdy termin wypada dziś, okno o tym ostrzega.
+- Poprawione: po zmianie daty, częstotliwości albo liczby rat czekające płatności spoza nowego harmonogramu znikają z „Do sprawdzenia”, a licznik „spłacono” liczy tylko raty z harmonogramu.
+
 ## 1.5.0 – 2026-11-23
 
 Raty.

@@ -221,6 +221,20 @@ export function lastDue(r: Schedule): string | null {
   return r.end_date && d > r.end_date ? r.end_date : d;
 }
 
+/** Czy termin należy do harmonogramu (po zmianie daty startu czy liczby rat stare terminy już nie należą). */
+export function isScheduled(r: Schedule, due: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(r.start_date)) return false;
+  const months = (Number(due.slice(0, 4)) - Number(r.start_date.slice(0, 4))) * 12 + Number(due.slice(5, 7)) - Number(r.start_date.slice(5, 7));
+  if (months < 0 || months % r.every_months !== 0) return false;
+  const n = months / r.every_months;
+  if (n >= ratesFromStart(r) || nthDue(r, n) !== due) return false;
+  return !r.end_date || due <= r.end_date;
+}
+
+/** Czekające płatności, które po zmianie harmonogramu do niego nie pasują (do usunięcia z „Do sprawdzenia”). */
+export const staleDues = (r: Schedule & { id: number }, pending: Transaction[]) =>
+  pending.filter((t) => t.status === "pending" && t.recurring_id === r.id && t.recurring_due && !isScheduled(r, t.recurring_due));
+
 /** Numer raty przypadającej w danym terminie (null, gdy to nie raty albo termin spoza harmonogramu). */
 export function installmentNo(r: Schedule, due: string): number | null {
   if (!r.installments_total) return null;
@@ -247,7 +261,8 @@ export function installmentStatus(r: Recurring, txs: Transaction[]): Installment
   if (!r.installments_total) return null;
   let confirmed = 0, pending = 0;
   for (const t of txs) {
-    if (t.recurring_id !== r.id || !t.recurring_due || t.recurring_due < r.start_date) continue;
+    // liczą się tylko raty z harmonogramu – płatność sprzed zmiany daty nie jest „spłaconą ratą”
+    if (t.recurring_id !== r.id || !t.recurring_due || !isScheduled(r, t.recurring_due)) continue;
     if (t.status === "pending") pending++;
     else confirmed++;
   }

@@ -5,10 +5,10 @@ import { addMonths, daysInMonth, today } from "../engine/dates";
 import { round2 } from "../engine/money";
 import {
   dueDates, FREQUENCIES, frequencyLabel, type InstallmentStatus, installmentStatus, lastDue, monthlyCost, nextDue, ratesFromStart,
-  type RecurringSuggestion, resetInstallments, suggestRecurring,
+  type RecurringSuggestion, resetInstallments, staleDues, suggestRecurring,
 } from "../engine/recurring";
-import type { Kind, Recurring } from "../engine/types";
-import { deleteRecurring, insertRecurring, type RecurringInput, updateRecurring } from "../lib/data";
+import type { Kind, Recurring, Transaction } from "../engine/types";
+import { deleteRecurring, deleteTransactions, insertRecurring, type RecurringInput, updateRecurring } from "../lib/data";
 import { useData } from "../lib/DataContext";
 import { dayLabel, money, moneyRound } from "../lib/format";
 import { CategoryIcon } from "../lib/icons";
@@ -40,7 +40,8 @@ export function RecurringPage() {
 
   const blank = (): RecurringInput => ({
     name: "", kind: "expense", amount: 0, variable_amount: false, category_id: null, merchant: null,
-    every_months: 1, start_date: now, end_date: null, active: true,
+    // bez domyślnej daty: „dziś” od razu tworzyłoby płatność do sprawdzenia (np. 1. ratę kredytu, który rusza za miesiąc)
+    every_months: 1, start_date: "", end_date: null, active: true,
   });
 
   return (
@@ -127,9 +128,15 @@ export function RecurringPage() {
 
       {edit && (
         <RecurringModal value={edit} busy={busy} onClose={() => setEdit(null)} canInstallments={canInstallments}
-          status={"id" in edit ? installmentStatus(edit, allTx) : null}
+          allTx={allTx}
           onSave={async (input) => {
-            const ok = await run(() => ("id" in edit ? updateRecurring(edit.id, input) : insertRecurring(input)), "Zapisano stałą płatność");
+            const ok = await run(async () => {
+              if (!("id" in edit)) return insertRecurring(input);
+              await updateRecurring(edit.id, input);
+              // czekające płatności, które po zmianie daty / liczby rat nie pasują do harmonogramu – znikają
+              const stale = staleDues({ ...edit, ...input, id: edit.id }, data!.pending);
+              if (stale.length) await deleteTransactions(stale.map((t) => t.id));
+            }, "Zapisano stałą płatność");
             if (ok) setEdit(null);
           }}
           onDelete={"id" in edit ? async () => {
@@ -160,8 +167,8 @@ function InstallmentLine({ st, next }: { st: InstallmentStatus; next: string | n
   );
 }
 
-function RecurringModal({ value, status, canInstallments, busy, onClose, onSave, onDelete }: {
-  value: Recurring | RecurringInput; status: InstallmentStatus | null; canInstallments: boolean; busy: boolean;
+function RecurringModal({ value, allTx, canInstallments, busy, onClose, onSave, onDelete }: {
+  value: Recurring | RecurringInput; allTx: Transaction[]; canInstallments: boolean; busy: boolean;
   onClose: () => void; onSave: (r: RecurringInput) => void; onDelete?: () => void;
 }) {
   const { activeCategories, categoryById } = useData();
@@ -170,19 +177,31 @@ function RecurringModal({ value, status, canInstallments, busy, onClose, onSave,
     return rest;
   });
   const set = (p: Partial<RecurringInput>) => setV((x) => ({ ...x, ...p }));
-  // raty: liczba wszystkich i ile już spłacono (przy edycji – stan obecny, z zatwierdzonymi ratami)
-  const [rates, setRates] = useState(!!value.installments_total);
-  const [total, setTotal] = useState<number | null>(value.installments_total ?? null);
-  const [paid, setPaid] = useState<number | null>(status ? status.paid : value.installments_paid_before ?? 0);
   const cats = activeCategories(v.kind);
   const current = v.category_id !== null ? categoryById.get(v.category_id) : undefined;
   const choices = current && !cats.includes(current) ? [...cats, current] : cats;
   const now = today();
   const isNew = !("id" in value);
-  // nowa pozycja z datą w przeszłości: zaległe terminy trafią do sprawdzenia
-  const past = isNew && v.start_date < now ? dueDates({ ...v, installments_total: rates ? total : null, installments_paid_before: paid ?? 0 }, v.start_date, now).slice(-12).length : 0;
+  const hasDate = /^\d{4}-\d{2}-\d{2}$/.test(v.start_date);
+
+  // raty: liczba wszystkich i ile spłacono
+  const [rates, setRates] = useState(!!value.installments_total);
+  const [total, setTotal] = useState<number | null>(value.installments_total ?? null);
+  // przy edycji: stan spłaty według ustawień z okna (data, liczba rat) – przelicza się, gdy je zmieniasz
+  const live = !isNew && rates && total && hasDate
+    ? installmentStatus({ ...(value as Recurring), ...v, installments_total: total, installments_paid_before: value.installments_paid_before ?? 0 }, allTx)
+    : null;
+  // „spłacono”: przy nowej – to, co wpiszesz; przy edycji – stan obecny, dopóki go sam nie zmienisz
+  const [paidInput, setPaidInput] = useState<number | null | undefined>(isNew ? value.installments_paid_before ?? 0 : undefined);
+  const paid = paidInput === undefined ? live?.paid ?? value.installments_paid_before ?? 0 : paidInput;
+  const paidChanged = !isNew && paidInput !== undefined && live !== null && paid !== live.paid;
+
+  // nowa pozycja z datą dziś albo w przeszłości: te terminy od razu trafią do sprawdzenia
+  const due = (to: string) => dueDates({ ...v, installments_total: rates ? total : null, installments_paid_before: paid ?? 0 }, v.start_date, to);
+  const past = isNew && hasDate && v.start_date < now ? due(now).slice(-12).length : 0;
+  const dueToday = isNew && hasDate && v.start_date === now;
   const ratesOk = !rates || (canInstallments && total !== null && total >= 1 && paid !== null && paid >= 0 && paid <= total);
-  const valid = v.name.trim() && v.amount > 0 && /^\d{4}-\d{2}-\d{2}$/.test(v.start_date) && (!v.end_date || v.end_date >= v.start_date) && ratesOk;
+  const valid = v.name.trim() && v.amount > 0 && hasDate && (!v.end_date || v.end_date >= v.start_date) && ratesOk;
 
   /** harmonogram po zapisie (do podglądu i do zapisu) */
   function withRates(): RecurringInput {
@@ -194,12 +213,12 @@ function RecurringModal({ value, status, canInstallments, busy, onClose, onSave,
     }
     if (!rates || total === null) return { ...base, installments_total: null, installments_paid_before: 0 };
     const p = Math.min(paid ?? 0, total);
-    // edycja ze zmienioną liczbą spłaconych rat → harmonogram od następnego terminu
-    if (status && p !== status.paid) return { ...base, end_date: null, installments_total: total, ...resetInstallments({ ...(value as Recurring), ...base, installments_total: total }, p, now) };
-    return { ...base, end_date: null, installments_total: total, installments_paid_before: status ? (value.installments_paid_before ?? 0) : p };
+    // edycja ze zmienioną liczbą spłaconych rat → harmonogram od następnego terminu po dziś
+    if (paidChanged && hasDate) return { ...base, end_date: null, installments_total: total, ...resetInstallments({ ...(value as Recurring), ...base, installments_total: total }, p, now) };
+    return { ...base, end_date: null, installments_total: total, installments_paid_before: isNew ? p : value.installments_paid_before ?? 0 };
   }
   const preview = withRates();
-  // ile rat zostało: wszystkie − spłacone (te, które wpisałeś, razem z zatwierdzonymi w aplikacji)
+  // ile rat zostało: wszystkie − spłacone (wpisane razem z zatwierdzonymi w aplikacji)
   const left = rates && total !== null && paid !== null ? Math.max(0, total - Math.min(paid, total)) : ratesFromStart(preview);
 
   return (
@@ -247,9 +266,9 @@ function RecurringModal({ value, status, canInstallments, busy, onClose, onSave,
                   <input className="input" type="number" inputMode="numeric" min={1} max={600} value={total ?? ""} placeholder="np. 10"
                     onChange={(e) => setTotal(e.target.value === "" ? null : Math.max(1, Math.round(Number(e.target.value))))} />
                 </Field>
-                <Field label={status ? "Spłacono rat" : "Już spłacono"}>
+                <Field label={isNew ? "Już spłacono" : "Spłacono rat"} hint={isNew ? "0 = pierwsza rata jeszcze przed Tobą" : undefined}>
                   <input className="input" type="number" inputMode="numeric" min={0} max={total ?? 600} value={paid ?? ""} placeholder="0"
-                    onChange={(e) => setPaid(e.target.value === "" ? null : Math.max(0, Math.round(Number(e.target.value))))} />
+                    onChange={(e) => setPaidInput(e.target.value === "" ? null : Math.max(0, Math.round(Number(e.target.value))))} />
                 </Field>
               </div>
             )}
@@ -265,8 +284,8 @@ function RecurringModal({ value, status, canInstallments, busy, onClose, onSave,
             </select>
           </Field>
           <Field label={rates ? `Termin ${(preview.installments_paid_before ?? paid ?? 0) + 1}. raty` : isNew ? "Najbliższa płatność" : "Pierwsza płatność"}>
-            <input className="input" type="date" value={rates && status && paid !== status.paid ? preview.start_date : v.start_date}
-              disabled={!!(rates && status && paid !== status.paid)} onChange={(e) => set({ start_date: e.target.value })} />
+            <input className="input" type="date" value={paidChanged ? preview.start_date : v.start_date} required
+              disabled={paidChanged} onChange={(e) => set({ start_date: e.target.value })} />
           </Field>
           {!rates && (
             <Field label="Do kiedy" hint="Puste = bez końca">
@@ -274,7 +293,7 @@ function RecurringModal({ value, status, canInstallments, busy, onClose, onSave,
             </Field>
           )}
         </div>
-        {rates && canInstallments && total !== null && paid !== null && paid <= total && (
+        {rates && canInstallments && hasDate && total !== null && paid !== null && paid <= total && (
           <p className="text-sm text-slate-600 dark:text-slate-300">
             {left === 0
               ? "Wszystkie raty spłacone – płatność nie będzie się już pojawiać."
@@ -286,6 +305,11 @@ function RecurringModal({ value, status, canInstallments, busy, onClose, onSave,
           <p className="text-sm text-slate-600 dark:text-slate-300">
             <CalendarClock className="mr-1 inline size-4 align-[-3px]" />
             {frequencyLabel(v)}. Kolejne terminy: {dueDates(preview, now, "2100-12-31", 60).slice(0, 3).map(dayLabel).join(", ") || "brak"}.
+          </p>
+        )}
+        {dueToday && (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
+            Termin jest dziś – {rates ? `${(paid ?? 0) + 1}. rata` : "ta płatność"} od razu trafi do „Do sprawdzenia”. Jeśli pierwsza płatność będzie później, wybierz jej datę.
           </p>
         )}
         {past > 0 && (

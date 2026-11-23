@@ -12,6 +12,15 @@ export const APP_VERSION: string = __APP_VERSION__;
 
 export const RELEASES: Release[] = [
   {
+    version: "1.5.1",
+    date: "2026-11-23",
+    title: "Poprawki rat",
+    changes: [
+      { kind: "fixed", text: "Kredyt z pierwszą ratą w przyszłym miesiącu nie dostaje już „spłaconej” raty z dzisiejszą datą: nowa stała płatność nie ma domyślnie dzisiejszej daty – datę pierwszej płatności wybierasz sam, a gdy wypada dziś, okno o tym ostrzega." },
+      { kind: "fixed", text: "Po zmianie daty, częstotliwości albo liczby rat czekające płatności, które nie pasują do nowego harmonogramu, znikają z „Do sprawdzenia”, a licznik „spłacono” liczy tylko raty z harmonogramu i od razu przelicza się w oknie edycji." },
+    ],
+  },
+  {
     version: "1.5.0",
     date: "2026-11-23",
     title: "Raty",

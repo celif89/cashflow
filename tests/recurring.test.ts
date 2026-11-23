@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  dueDates, frequencyLabel, installmentNo, installmentStatus, lastDue, matchRecurring, missingDues, monthlyCost, nextDue, nthDue,
+  dueDates, frequencyLabel, installmentNo, installmentStatus, isScheduled, lastDue, staleDues, matchRecurring, missingDues, monthlyCost, nextDue, nthDue,
   plannedCumulative, recurringRef, refOf, resetInstallments, suggestRecurring, upcoming,
 } from "../src/engine/recurring";
 import { donutSlices, type CategoryTotal } from "../src/engine/stats";
@@ -181,5 +181,25 @@ describe("raty", () => {
     expect(lastDue(after)).toBe("2027-12-03"); // 13 rat od grudnia 2026
     // raty zatwierdzone przed nowym startem nie liczą się drugi raz
     expect(installmentStatus(after, [tx({ recurring_id: 10, recurring_due: "2026-11-03" })])?.paid).toBe(11);
+  });
+});
+
+describe("zmiana harmonogramu", () => {
+  // kredyt zapisany najpierw z dzisiejszą datą, potem przesunięty na 21 grudnia
+  const loan = rec({ id: 11, name: "Kredyt", amount: 300, start_date: "2026-12-21", installments_total: 24, installments_paid_before: 0 });
+
+  it("termin należy do harmonogramu tylko w dniu raty i w jej zakresie", () => {
+    expect(isScheduled(loan, "2026-12-21")).toBe(true);
+    expect(isScheduled(loan, "2028-11-21")).toBe(true); // 24. rata
+    expect(isScheduled(loan, "2028-12-21")).toBe(false); // 25. – już nie
+    expect(isScheduled(loan, "2026-11-23")).toBe(false); // sprzed startu
+    expect(isScheduled(loan, "2027-01-20")).toBe(false); // inny dzień
+  });
+
+  it("czekająca „rata” z dawnej daty jest do usunięcia i nie liczy się jako spłacona", () => {
+    const orphan = tx({ recurring_id: 11, recurring_due: "2026-11-23", status: "pending", amount: 300 });
+    const confirmedOrphan = tx({ recurring_id: 11, recurring_due: "2026-11-23", amount: 300 });
+    expect(staleDues(loan, [orphan, tx({ recurring_id: 11, recurring_due: "2026-12-21", status: "pending" })]).map((t) => t.id)).toEqual([orphan.id]);
+    expect(installmentStatus(loan, [confirmedOrphan])).toMatchObject({ paid: 0, remaining: 24 });
   });
 });
